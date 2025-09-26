@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Can I go boating today?</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.12/css/weather-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.12/css/weather-icons-wind.min.css">
+</head>
+<body>
+    <div id="weather-alerts"></div>
+    <div class="title-container">
+        <img src="icons/sailboat.svg" alt="Sailboat" class="boat-icon">
+        <h1>Can I go boating today?</h1>
+    </div>
+    <div id="weather-forecast"></div>
+    <div id="hourly-forecast-container" style="display: none;">
+        <h2 id="hourly-forecast-day"></h2>
+        <div id="hourly-forecast-details"></div>
+        <p class="tide-disclaimer">
+            Tide data is an estimate and should not be used for navigation.
+        </p>
+    </div>
+    <div id="radar-map-container"></div>
+    <script src="script.js"></script>
+</body>
+</html>
