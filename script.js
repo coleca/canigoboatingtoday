@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function getWeather(lat, lon) {
-    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
+    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=11`;
     const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto`;
 
     Promise.all([
@@ -35,22 +35,13 @@ function getWeather(lat, lon) {
     .catch(error => {
         console.error('Error fetching weather data:', error);
     });
-
-    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
-
-    fetch(apiUrl)
-        .then(response => response.json())
-        .then(data => {
-            displayWeather(data);
-        })
-        .catch(error => {
-            console.error('Error fetching weather data:', error);
-        });
 }
 
 function displayWeather(data) {
     const forecastContainer = document.getElementById('weather-forecast');
-    forecastContainer.innerHTML = ''; // Clear previous forecast
+    forecastContainer.innerHTML = '';
+
+    displayRadarMap(data.latitude, data.longitude);
 
     const daily = data.daily;
 
@@ -79,9 +70,17 @@ function displayWeather(data) {
 
         forecastContainer.appendChild(dayDiv);
     }
+
+    // Automatically display the hourly forecast for the current day (index 0)
+    displayHourlyForecast(0, data);
 }
 
 function displayHourlyForecast(dayIndex, data) {
+    // Highlight the selected day
+    const allDays = document.querySelectorAll('.day-forecast');
+    allDays.forEach(day => day.classList.remove('selected'));
+    allDays[dayIndex].classList.add('selected');
+
     const hourlyContainer = document.getElementById('hourly-forecast-container');
     const hourlyDetails = document.getElementById('hourly-forecast-details');
     const hourlyDay = document.getElementById('hourly-forecast-day');
@@ -104,6 +103,8 @@ function displayHourlyForecast(dayIndex, data) {
     for (let i = startIndex; i < endIndex && i < data.hourly.time.length; i++) {
         const hourlyItem = document.createElement('div');
         hourlyItem.classList.add('hourly-item');
+        const hour = new Date(data.hourly.time[i]).getHours();
+        hourlyItem.id = `hourly-item-${hour}`;
 
         const time = new Date(data.hourly.time[i]).toLocaleTimeString([], { hour: 'numeric', hour12: true });
         const windSpeed = data.hourly.wind_speed_10m[i];
@@ -128,7 +129,20 @@ function displayHourlyForecast(dayIndex, data) {
 
     hourlyContainer.style.display = 'block';
     document.querySelector('.tide-disclaimer').style.display = (data.marine ? 'block' : 'none');
+
+    // Scroll to the current hour if viewing today's forecast
+    if (dayIndex === 0) {
+        const currentHour = new Date().getHours();
+        const currentHourElement = document.getElementById(`hourly-item-${currentHour}`);
+        if (currentHourElement) {
+            // Use timeout to ensure the browser has time to render the elements before scrolling
+            setTimeout(() => {
+                currentHourElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }, 100);
+        }
+    }
 }
+
 
 function getWeatherIcon(code) {
     // Mapping based on WMO Weather interpretation codes
@@ -140,4 +154,18 @@ function getWeatherIcon(code) {
     if (code >= 80 && code <= 86) return 'icons/showers.svg'; // Showers
     if (code >= 95 && code <= 99) return 'icons/thunderstorm.svg'; // Thunderstorm
     return 'icons/cloudy.svg'; // Default
+}
+
+function displayRadarMap(lat, lon) {
+    const radarContainer = document.getElementById('radar-map-container');
+    radarContainer.innerHTML = ''; // Clear previous map
+
+    const iframe = document.createElement('iframe');
+    // Using the example key from the ZoomRadar website.
+    // A proper implementation would require a paid subscription.
+    iframe.src = `https://maps.zoomradar.com/map.php?lat=${lat}&lon=${lon}&zoom=9`;
+    iframe.style.width = '100%';
+    iframe.style.height = '400px';
+    iframe.style.border = 'none';
+    radarContainer.appendChild(iframe);
 }
