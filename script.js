@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getWeather(lat, lon) {
     const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
-    const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto`;
+    const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
 
     Promise.all([
         fetch(forecastApiUrl).then(response => response.json()),
@@ -115,7 +115,7 @@ function displayHourlyForecast(dayIndex, data) {
         if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
             const tide = data.marine.hourly.sea_level_height_msl[i];
             if (tide !== null && !isNaN(tide)) {
-                tideHtml = `<div><i class="wi wi-barometer"></i> ${tide.toFixed(2)}m</div>`;
+                tideHtml = `<div><i class="wi wi-barometer"></i> ${tide.toFixed(2)}ft</div>`;
             }
         }
 
