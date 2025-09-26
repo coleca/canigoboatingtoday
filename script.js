@@ -11,15 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error("Geolocation is not supported by this browser.");
         getWeather(40.71, -74.01); // Default to New York
-            // Fallback for when geolocation is not available or denied
-            // Using a default location (e.g., New York)
-            getWeather(40.71, -74.01);
-        });
-    } else {
-        console.error("Geolocation is not supported by this browser.");
-        // Fallback for when geolocation is not available
-        // Using a default location (e.g., New York)
-        getWeather(40.71, -74.01);
     }
 });
 
@@ -44,6 +35,7 @@ function getWeather(lat, lon) {
     .catch(error => {
         console.error('Error fetching weather data:', error);
     });
+
     const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
 
     fetch(apiUrl)
