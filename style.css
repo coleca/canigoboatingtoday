@@ -14,7 +14,19 @@ body {
 h1 {
     color: #005f73; /* Darker blue for the title */
     font-weight: 700;
+    margin: 0;
+}
+
+.title-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
     margin-bottom: 20px;
+}
+
+.boat-icon {
+    width: 50px;
+    height: 50px;
 }
 
 #weather-alerts {
