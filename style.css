@@ -18,8 +18,8 @@ h1 {
 }
 
 #weather-alerts {
-    width: 80%;
-    max-width: 800px;
+    width: 90%;
+    max-width: 1200px;
     margin-bottom: 20px;
 }
 
@@ -32,8 +32,8 @@ h1 {
 }
 
 #radar-map-container {
-    width: 80%;
-    max-width: 800px;
+    width: 90%;
+    max-width: 1200px;
     margin-top: 20px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     border-radius: 10px;
@@ -42,11 +42,11 @@ h1 {
 
 #weather-forecast {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(8, 1fr);
     gap: 15px;
     margin-top: 20px;
-    width: 80%;
-    max-width: 800px;
+    width: 90%;
+    max-width: 1200px;
 }
 
 .day-forecast {
@@ -83,13 +83,29 @@ h1 {
 }
 
 .day-forecast .temp {
-    font-size: 1.1em;
+    font-size: 1em;
     color: #555;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
 }
 
 .day-forecast .temp .max {
     font-weight: 700;
     color: #000;
+}
+
+.sunrise-sunset {
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-top: 10px;
+}
+
+.sunrise-sunset div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
 }
 
 #hourly-forecast-container {
@@ -98,8 +114,8 @@ h1 {
     background-color: #fff;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    width: 80%;
-    max-width: 800px;
+    width: 90%;
+    max-width: 1200px;
 }
 
 #hourly-forecast-details {
