@@ -35,11 +35,22 @@ function getWeather(lat, lon) {
     .catch(error => {
         console.error('Error fetching weather data:', error);
     });
+
+    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            displayWeather(data);
+        })
+        .catch(error => {
+            console.error('Error fetching weather data:', error);
+        });
 }
 
 function displayWeather(data) {
     const forecastContainer = document.getElementById('weather-forecast');
-    forecastContainer.innerHTML = '';
+    forecastContainer.innerHTML = ''; // Clear previous forecast
 
     const daily = data.daily;
 
@@ -118,7 +129,6 @@ function displayHourlyForecast(dayIndex, data) {
     hourlyContainer.style.display = 'block';
     document.querySelector('.tide-disclaimer').style.display = (data.marine ? 'block' : 'none');
 }
-
 
 function getWeatherIcon(code) {
     // Mapping based on WMO Weather interpretation codes
