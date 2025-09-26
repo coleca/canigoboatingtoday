@@ -1,20 +1,46 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const locationForm = document.getElementById('location-form');
+    locationForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const locationInput = document.getElementById('location-input');
+        geocodeAndGetWeather(locationInput.value);
+    });
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(position => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            getWeather(lat, lon);
+            getWeather(lat, lon, "Current Location");
         }, error => {
             console.error("Error getting location: ", error);
-            getWeather(40.71, -74.01); // Default to New York
+            geocodeAndGetWeather("New York");
         });
     } else {
         console.error("Geolocation is not supported by this browser.");
-        getWeather(40.71, -74.01); // Default to New York
+        geocodeAndGetWeather("New York");
     }
 });
 
-function getWeather(lat, lon) {
+function geocodeAndGetWeather(locationName) {
+    const geocodeApiUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${locationName}&count=1&language=en&format=json`;
+
+    fetch(geocodeApiUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.results && data.results.length > 0) {
+                const location = data.results[0];
+                getWeather(location.latitude, location.longitude, location.name);
+            } else {
+                alert("Could not find location. Please try again.");
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching geocoding data:', error);
+            alert("An error occurred while fetching the location. Please try again.");
+        });
+}
+
+function getWeather(lat, lon, locationName) {
     const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
     const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
 
@@ -30,14 +56,17 @@ function getWeather(lat, lon) {
             console.warn("Could not retrieve marine data. This is expected for inland locations.");
             combinedData.marine = null;
         }
-        displayWeather(combinedData);
+        displayWeather(combinedData, locationName);
     })
     .catch(error => {
         console.error('Error fetching weather data:', error);
     });
 }
 
-function displayWeather(data) {
+function displayWeather(data, locationName) {
+    const currentLocationElement = document.getElementById('current-location');
+    currentLocationElement.textContent = `Weather for: ${locationName}`;
+
     const forecastContainer = document.getElementById('weather-forecast');
     forecastContainer.innerHTML = '';
 
