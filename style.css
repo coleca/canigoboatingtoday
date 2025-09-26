@@ -1,0 +1,50 @@
+body {
+    font-family: sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+h1 {
+    color: #333;
+}
+
+#weather-forecast {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.day-forecast {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.day-forecast h2 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #555;
+}
+
+.day-forecast img {
+    width: 50px;
+    height: 50px;
+}
+
+.day-forecast .temp {
+    font-size: 1em;
+    color: #777;
+}
+
+.day-forecast .temp .max {
+    font-weight: bold;
+    color: #333;
+}
