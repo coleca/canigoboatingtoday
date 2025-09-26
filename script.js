@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function getWeather(lat, lon) {
-    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=11`;
+    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
     const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto`;
 
     Promise.all([
@@ -50,7 +50,8 @@ function displayWeather(data) {
         dayDiv.classList.add('day-forecast');
         dayDiv.addEventListener('click', () => displayHourlyForecast(i, data));
 
-        const date = new Date(daily.time[i]);
+        // By appending 'T00:00', we ensure the date is parsed in the local timezone, preventing day-of-the-week errors.
+        const date = new Date(daily.time[i] + 'T00:00');
         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
 
         const dayNameElement = document.createElement('h2');
@@ -64,9 +65,16 @@ function displayWeather(data) {
         tempElement.classList.add('temp');
         tempElement.innerHTML = `<span class="max">${Math.round(daily.temperature_2m_max[i])}°F</span> / ${Math.round(daily.temperature_2m_min[i])}°F`;
 
+        const sunrise = new Date(data.daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sunset = new Date(data.daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sunriseSunsetElement = document.createElement('div');
+        sunriseSunsetElement.classList.add('sunrise-sunset');
+        sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${sunrise}</div><div><i class="wi wi-sunset"></i> ${sunset}</div>`;
+
         dayDiv.appendChild(dayNameElement);
         dayDiv.appendChild(weatherIcon);
         dayDiv.appendChild(tempElement);
+        dayDiv.appendChild(sunriseSunsetElement);
 
         forecastContainer.appendChild(dayDiv);
     }
@@ -87,15 +95,8 @@ function displayHourlyForecast(dayIndex, data) {
 
     hourlyDetails.innerHTML = '';
 
-    const date = new Date(data.daily.time[dayIndex]);
+    const date = new Date(data.daily.time[dayIndex] + 'T00:00');
     hourlyDay.textContent = `Hourly Forecast for ${date.toLocaleDateString('en-US', { weekday: 'long' })}`;
-
-    const sunrise = new Date(data.daily.sunrise[dayIndex]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const sunset = new Date(data.daily.sunset[dayIndex]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    let sunriseSunsetHtml = `<div class="hourly-item"><div><strong>Sunrise</strong></div><div>${sunrise}</div><br><div><strong>Sunset</strong></div><div>${sunset}</div></div>`;
-    hourlyDetails.innerHTML += sunriseSunsetHtml;
-
 
     const startIndex = dayIndex * 24;
     const endIndex = startIndex + 24;
@@ -114,14 +115,14 @@ function displayHourlyForecast(dayIndex, data) {
         if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
             const tide = data.marine.hourly.sea_level_height_msl[i];
             if (tide !== null && !isNaN(tide)) {
-                tideHtml = `<div>Tide: ${tide.toFixed(2)}m</div>`;
+                tideHtml = `<div><i class="wi wi-barometer"></i> ${tide.toFixed(2)}m</div>`;
             }
         }
 
         hourlyItem.innerHTML = `
             <div class="time">${time}</div>
-            <div>Wind: ${Math.round(windSpeed)} mph</div>
-            <div>Precip: ${precipitation}%</div>
+            <div><i class="wi wi-strong-wind"></i> ${Math.round(windSpeed)} mph</div>
+            <div><i class="wi wi-raindrop"></i> ${precipitation}%</div>
             ${tideHtml}
         `;
         hourlyDetails.appendChild(hourlyItem);
@@ -161,9 +162,8 @@ function displayRadarMap(lat, lon) {
     radarContainer.innerHTML = ''; // Clear previous map
 
     const iframe = document.createElement('iframe');
-    // Using the example key from the ZoomRadar website.
-    // A proper implementation would require a paid subscription.
-    iframe.src = `https://maps.zoomradar.com/map.php?lat=${lat}&lon=${lon}&zoom=9`;
+    // The meteoblue widget is configured to use the detected latitude and longitude.
+    iframe.src = `https://www.meteoblue.com/en/weather/maps/widget/?windAnimation=0&gust=0&satellite=0&clouds_precipitation=1&temperature=0&sunshine=0&extreme=0&geoloc=fixed&lat=${lat}&lon=${lon}&zoom=8&autowidth=auto`;
     iframe.style.width = '100%';
     iframe.style.height = '400px';
     iframe.style.border = 'none';
