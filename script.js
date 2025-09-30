@@ -41,7 +41,7 @@ function geocodeAndGetWeather(locationName) {
 }
 
 function getWeather(lat, lon, locationName) {
-    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
+    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
     const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
 
     Promise.all([
@@ -73,13 +73,13 @@ function displayWeather(data, locationName) {
     displayRadarMap(data.latitude, data.longitude);
 
     const daily = data.daily;
+    const hourly = data.hourly;
 
     for (let i = 0; i < daily.time.length; i++) {
         const dayDiv = document.createElement('div');
         dayDiv.classList.add('day-forecast');
         dayDiv.addEventListener('click', () => displayHourlyForecast(i, data));
 
-        // By appending 'T00:00', we ensure the date is parsed in the local timezone, preventing day-of-the-week errors.
         const date = new Date(daily.time[i] + 'T00:00');
         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
 
@@ -94,16 +94,19 @@ function displayWeather(data, locationName) {
         tempElement.classList.add('temp');
         tempElement.innerHTML = `<span class="max">${Math.round(daily.temperature_2m_max[i])}°F</span> / ${Math.round(daily.temperature_2m_min[i])}°F`;
 
-        const sunrise = new Date(data.daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const sunset = new Date(data.daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sunrise = new Date(daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sunset = new Date(daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const sunriseSunsetElement = document.createElement('div');
         sunriseSunsetElement.classList.add('sunrise-sunset');
         sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${sunrise}</div><div><i class="wi wi-sunset"></i> ${sunset}</div>`;
 
-        const goodBoatingDay = isGoodBoatingDay(daily, i);
-        const boatingDayElement = document.createElement('p');
+        const goodBoatingDay = isGoodBoatingDay(hourly, i);
+        const boatingDayElement = document.createElement('div');
         boatingDayElement.classList.add('boating-day');
-        boatingDayElement.innerHTML = `Good Boating Day: <span class="${goodBoatingDay ? 'yes' : 'no'}">${goodBoatingDay ? 'YES' : 'NO'}</span>`;
+        boatingDayElement.innerHTML = `
+            <div>M: <span class="${goodBoatingDay.morning ? 'yes' : 'no'}">${goodBoatingDay.morning ? 'YES' : 'NO'}</span></div>
+            <div>A: <span class="${goodBoatingDay.afternoon ? 'yes' : 'no'}">${goodBoatingDay.afternoon ? 'YES' : 'NO'}</span></div>
+        `;
 
         dayDiv.appendChild(dayNameElement);
         dayDiv.appendChild(weatherIcon);
@@ -114,12 +117,10 @@ function displayWeather(data, locationName) {
         forecastContainer.appendChild(dayDiv);
     }
 
-    // Automatically display the hourly forecast for the current day (index 0)
     displayHourlyForecast(0, data);
 }
 
 function displayHourlyForecast(dayIndex, data) {
-    // Highlight the selected day
     const allDays = document.querySelectorAll('.day-forecast');
     allDays.forEach(day => day.classList.remove('selected'));
     allDays[dayIndex].classList.add('selected');
@@ -166,12 +167,10 @@ function displayHourlyForecast(dayIndex, data) {
     hourlyContainer.style.display = 'block';
     document.querySelector('.tide-disclaimer').style.display = (data.marine ? 'block' : 'none');
 
-    // Scroll to the current hour if viewing today's forecast
     if (dayIndex === 0) {
         const currentHour = new Date().getHours();
         const currentHourElement = document.getElementById(`hourly-item-${currentHour}`);
         if (currentHourElement) {
-            // Use timeout to ensure the browser has time to render the elements before scrolling
             setTimeout(() => {
                 currentHourElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
             }, 100);
@@ -181,23 +180,21 @@ function displayHourlyForecast(dayIndex, data) {
 
 
 function getWeatherIcon(code) {
-    // Mapping based on WMO Weather interpretation codes
-    if (code === 0) return 'icons/sun.svg'; // Clear sky
-    if (code >= 1 && code <= 3) return 'icons/cloudy.svg'; // Mainly clear, partly cloudy, and overcast
-    if (code === 45 || code === 48) return 'icons/fog.svg'; // Fog
-    if (code >= 51 && code <= 67) return 'icons/rain.svg'; // Drizzle, Rain
-    if (code >= 71 && code <= 77) return 'icons/snow.svg'; // Snow
-    if (code >= 80 && code <= 86) return 'icons/showers.svg'; // Showers
-    if (code >= 95 && code <= 99) return 'icons/thunderstorm.svg'; // Thunderstorm
-    return 'icons/cloudy.svg'; // Default
+    if (code === 0) return 'icons/sun.svg';
+    if (code >= 1 && code <= 3) return 'icons/cloudy.svg';
+    if (code === 45 || code === 48) return 'icons/fog.svg';
+    if (code >= 51 && code <= 67) return 'icons/rain.svg';
+    if (code >= 71 && code <= 77) return 'icons/snow.svg';
+    if (code >= 80 && code <= 86) return 'icons/showers.svg';
+    if (code >= 95 && code <= 99) return 'icons/thunderstorm.svg';
+    return 'icons/cloudy.svg';
 }
 
 function displayRadarMap(lat, lon) {
     const radarContainer = document.getElementById('radar-map-container');
-    radarContainer.innerHTML = ''; // Clear previous map
+    radarContainer.innerHTML = '';
 
     const iframe = document.createElement('iframe');
-    // The meteoblue widget is configured to use the detected latitude and longitude.
     iframe.src = `https://www.meteoblue.com/en/weather/maps/widget/?windAnimation=0&gust=0&satellite=0&clouds_precipitation=1&temperature=0&sunshine=0&extreme=0&geoloc=fixed&lat=${lat}&lon=${lon}&zoom=8&autowidth=auto`;
     iframe.style.width = '100%';
     iframe.style.height = '400px';
@@ -205,19 +202,33 @@ function displayRadarMap(lat, lon) {
     radarContainer.appendChild(iframe);
 }
 
-function isGoodBoatingDay(daily, dayIndex) {
-    const maxWind = 15; // mph
-    const maxPrecip = 20; // %
-    const minTemp = 60; // F
-    const maxTemp = 90; // F
+function isGoodBoatingDay(hourly, dayIndex) {
+    const maxWind = 15;
+    const maxPrecip = 20;
+    const minTemp = 60;
+    const maxTemp = 90;
 
-    const wind = daily.wind_speed_10m_max[dayIndex];
-    const precip = daily.precipitation_probability_max[dayIndex];
-    const temp = daily.temperature_2m_max[dayIndex];
+    const startIndex = dayIndex * 24;
+    const endIndex = startIndex + 24;
 
-    if (wind > maxWind) return false;
-    if (precip > maxPrecip) return false;
-    if (temp < minTemp || temp > maxTemp) return false;
+    let morningIsGood = true;
+    let afternoonIsGood = true;
 
-    return true;
+    for (let i = startIndex; i < endIndex && i < hourly.time.length; i++) {
+        const hour = new Date(hourly.time[i]).getHours();
+        const wind = hourly.wind_speed_10m[i];
+        const precip = hourly.precipitation_probability[i];
+        const temp = hourly.temperature_2m[i];
+
+        const isBadWeather = wind > maxWind || precip > maxPrecip || temp < minTemp || temp > maxTemp;
+
+        if (hour >= 8 && hour < 15) {
+            if (isBadWeather) morningIsGood = false;
+        }
+        if (hour >= 15 && hour < 20) {
+            if (isBadWeather) afternoonIsGood = false;
+        }
+    }
+
+    return { morning: morningIsGood, afternoon: afternoonIsGood };
 }
