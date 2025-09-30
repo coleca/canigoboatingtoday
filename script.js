@@ -80,6 +80,7 @@ function displayWeather(data, locationName) {
         dayDiv.classList.add('day-forecast');
         dayDiv.addEventListener('click', () => displayHourlyForecast(i, data));
 
+        // By appending 'T00:00', we ensure the date is parsed in the local timezone, preventing day-of-the-week errors.
         const date = new Date(daily.time[i] + 'T00:00');
         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
 
@@ -104,8 +105,8 @@ function displayWeather(data, locationName) {
         const boatingDayElement = document.createElement('div');
         boatingDayElement.classList.add('boating-day');
         boatingDayElement.innerHTML = `
-            <div>M: <span class="${goodBoatingDay.morning ? 'yes' : 'no'}">${goodBoatingDay.morning ? 'YES' : 'NO'}</span></div>
-            <div>A: <span class="${goodBoatingDay.afternoon ? 'yes' : 'no'}">${goodBoatingDay.afternoon ? 'YES' : 'NO'}</span></div>
+            <div>MORN: <span class="${goodBoatingDay.morning.isGood ? 'yes' : 'no'}">${goodBoatingDay.morning.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.morning.reason)}"></i></div>
+            <div>AFT: <span class="${goodBoatingDay.afternoon.isGood ? 'yes' : 'no'}">${goodBoatingDay.afternoon.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.afternoon.reason)}"></i></div>
         `;
 
         dayDiv.appendChild(dayNameElement);
@@ -117,10 +118,12 @@ function displayWeather(data, locationName) {
         forecastContainer.appendChild(dayDiv);
     }
 
+    // Automatically display the hourly forecast for the current day (index 0)
     displayHourlyForecast(0, data);
 }
 
 function displayHourlyForecast(dayIndex, data) {
+    // Highlight the selected day
     const allDays = document.querySelectorAll('.day-forecast');
     allDays.forEach(day => day.classList.remove('selected'));
     allDays[dayIndex].classList.add('selected');
@@ -176,6 +179,11 @@ function displayHourlyForecast(dayIndex, data) {
             }, 100);
         }
     }
+
+    const weatherDescriptionElement = document.createElement('p');
+    weatherDescriptionElement.classList.add('weather-description');
+    weatherDescriptionElement.textContent = getWeatherDescription(data.daily.weather_code[dayIndex]);
+    hourlyContainer.appendChild(weatherDescriptionElement);
 }
 
 
@@ -203,16 +211,18 @@ function displayRadarMap(lat, lon) {
 }
 
 function isGoodBoatingDay(hourly, dayIndex) {
-    const maxWind = 15;
-    const maxPrecip = 20;
-    const minTemp = 60;
-    const maxTemp = 90;
+    const maxWind = 12 * 1.151; // Convert knots to mph
+    const maxPrecip = 20; // %
+    const minTemp = 60; // F
+    const maxTemp = 90; // F
 
     const startIndex = dayIndex * 24;
     const endIndex = startIndex + 24;
 
-    let morningIsGood = true;
-    let afternoonIsGood = true;
+    const results = {
+        morning: { isGood: true, reason: 'clear' },
+        afternoon: { isGood: true, reason: 'clear' }
+    };
 
     for (let i = startIndex; i < endIndex && i < hourly.time.length; i++) {
         const hour = new Date(hourly.time[i]).getHours();
@@ -220,15 +230,71 @@ function isGoodBoatingDay(hourly, dayIndex) {
         const precip = hourly.precipitation_probability[i];
         const temp = hourly.temperature_2m[i];
 
-        const isBadWeather = wind > maxWind || precip > maxPrecip || temp < minTemp || temp > maxTemp;
+        let reason = 'clear';
+        if (wind > maxWind) reason = 'wind';
+        else if (precip > maxPrecip) reason = 'precip';
+        else if (temp < minTemp || temp > maxTemp) reason = 'temp';
 
-        if (hour >= 8 && hour < 15) {
-            if (isBadWeather) morningIsGood = false;
+        const isBadWeather = reason !== 'clear';
+
+        if (hour >= 8 && hour < 15) { // Morning
+            if (isBadWeather && results.morning.isGood) {
+                results.morning = { isGood: false, reason: reason };
+            }
         }
-        if (hour >= 15 && hour < 20) {
-            if (isBadWeather) afternoonIsGood = false;
+        if (hour >= 15 && hour < 20) { // Afternoon
+            if (isBadWeather && results.afternoon.isGood) {
+                results.afternoon = { isGood: false, reason: reason };
+            }
         }
     }
 
-    return { morning: morningIsGood, afternoon: afternoonIsGood };
+    return results;
+}
+
+function getReasonIcon(reason) {
+    switch (reason) {
+        case 'wind':
+            return 'wi-strong-wind';
+        case 'precip':
+            return 'wi-raindrop';
+        case 'temp':
+            return 'wi-thermometer';
+        default:
+            return 'wi-day-sunny';
+    }
+}
+
+function getWeatherDescription(code) {
+    const descriptions = {
+        0: 'Clear sky',
+        1: 'Mainly clear, partly cloudy, and overcast',
+        2: 'Partly cloudy',
+        3: 'Overcast',
+        45: 'Fog and depositing rime fog',
+        48: 'Fog and depositing rime fog',
+        51: 'Drizzle: Light, moderate, and dense intensity',
+        53: 'Drizzle: Light, moderate, and dense intensity',
+        55: 'Drizzle: Light, moderate, and dense intensity',
+        56: 'Freezing Drizzle: Light and dense intensity',
+        57: 'Freezing Drizzle: Light and dense intensity',
+        61: 'Rain: Slight, moderate and heavy intensity',
+        63: 'Rain: Slight, moderate and heavy intensity',
+        65: 'Rain: Slight, moderate and heavy intensity',
+        66: 'Freezing Rain: Light and heavy intensity',
+        67: 'Freezing Rain: Light and heavy intensity',
+        71: 'Snow fall: Slight, moderate, and heavy intensity',
+        73: 'Snow fall: Slight, moderate, and heavy intensity',
+        75: 'Snow fall: Slight, moderate, and heavy intensity',
+        77: 'Snow grains',
+        80: 'Rain showers: Slight, moderate, and violent',
+        81: 'Rain showers: Slight, moderate, and violent',
+        82: 'Rain showers: Slight, moderate, and violent',
+        85: 'Snow showers slight and heavy',
+        86: 'Snow showers slight and heavy',
+        95: 'Thunderstorm: Slight or moderate',
+        96: 'Thunderstorm with slight and heavy hail',
+        99: 'Thunderstorm with slight and heavy hail',
+    };
+    return descriptions[code] || 'No description available.';
 }
