@@ -41,7 +41,7 @@ function geocodeAndGetWeather(locationName) {
 }
 
 function getWeather(lat, lon, locationName) {
-    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
+    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
     const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
 
     Promise.all([
@@ -100,10 +100,16 @@ function displayWeather(data, locationName) {
         sunriseSunsetElement.classList.add('sunrise-sunset');
         sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${sunrise}</div><div><i class="wi wi-sunset"></i> ${sunset}</div>`;
 
+        const goodBoatingDay = isGoodBoatingDay(daily, i);
+        const boatingDayElement = document.createElement('p');
+        boatingDayElement.classList.add('boating-day');
+        boatingDayElement.innerHTML = `Good Boating Day: <span class="${goodBoatingDay ? 'yes' : 'no'}">${goodBoatingDay ? 'YES' : 'NO'}</span>`;
+
         dayDiv.appendChild(dayNameElement);
         dayDiv.appendChild(weatherIcon);
         dayDiv.appendChild(tempElement);
         dayDiv.appendChild(sunriseSunsetElement);
+        dayDiv.appendChild(boatingDayElement);
 
         forecastContainer.appendChild(dayDiv);
     }
@@ -197,4 +203,21 @@ function displayRadarMap(lat, lon) {
     iframe.style.height = '400px';
     iframe.style.border = 'none';
     radarContainer.appendChild(iframe);
+}
+
+function isGoodBoatingDay(daily, dayIndex) {
+    const maxWind = 15; // mph
+    const maxPrecip = 20; // %
+    const minTemp = 60; // F
+    const maxTemp = 90; // F
+
+    const wind = daily.wind_speed_10m_max[dayIndex];
+    const precip = daily.precipitation_probability_max[dayIndex];
+    const temp = daily.temperature_2m_max[dayIndex];
+
+    if (wind > maxWind) return false;
+    if (precip > maxPrecip) return false;
+    if (temp < minTemp || temp > maxTemp) return false;
+
+    return true;
 }
