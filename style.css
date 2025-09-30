@@ -206,6 +206,22 @@ h1 {
     gap: 8px;
 }
 
+.boating-day {
+    font-size: 1em;
+    font-weight: 600;
+    margin-top: 15px;
+}
+
+.boating-day .yes {
+    color: #28a745;
+    font-weight: 700;
+}
+
+.boating-day .no {
+    color: #dc3545;
+    font-weight: 700;
+}
+
 .tide-disclaimer {
     font-size: 0.9em;
     text-align: center;
