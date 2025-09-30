@@ -134,6 +134,12 @@ function displayHourlyForecast(dayIndex, data) {
 
     hourlyDetails.innerHTML = '';
 
+    // Remove existing weather description if it exists
+    const existingDescription = hourlyContainer.querySelector('.weather-description');
+    if (existingDescription) {
+        existingDescription.remove();
+    }
+
     const date = new Date(data.daily.time[dayIndex] + 'T00:00');
     hourlyDay.textContent = `Hourly Forecast for ${date.toLocaleDateString('en-US', { weekday: 'long' })}`;
 
