@@ -217,8 +217,8 @@ function displayRadarMap(lat, lon) {
 }
 
 function isGoodBoatingDay(hourly, dayIndex) {
-    const maxWind = 12 * 1.151; // Convert knots to mph
-    const maxPrecip = 20; // %
+    const maxWind = 10 * 1.151; // 10 knots in mph
+    const maxPrecip = 25; // %
     const minTemp = 60; // F
     const maxTemp = 90; // F
 
