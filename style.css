@@ -254,3 +254,66 @@ h1 {
     overflow: hidden;
     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
 }
+
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+
+    h1 {
+        font-size: 1.8em;
+    }
+
+    .title-container {
+        gap: 10px;
+    }
+
+    .boat-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    #location-container {
+        width: 100%;
+    }
+
+    #location-form {
+        flex-direction: column;
+        width: 90%;
+        margin: 0 auto 10px auto;
+    }
+
+    #location-input {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    #weather-forecast {
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+        gap: 10px;
+    }
+
+    #hourly-forecast-container,
+    #radar-map-container {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .day-forecast {
+        padding: 15px;
+    }
+
+    .day-forecast h2 {
+        font-size: 1.2em;
+    }
+
+    .day-forecast .temp {
+        font-size: 1em;
+    }
+
+    .hourly-item {
+        flex: 0 0 110px;
+        padding: 15px;
+    }
+}
