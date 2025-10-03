@@ -11,6 +11,37 @@ body {
     color: #fff;
 }
 
+#loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#loader-overlay.visible {
+    display: flex;
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #3498db;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 .title-container {
     display: flex;
     align-items: center;
@@ -270,6 +301,82 @@ h1 {
     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
 }
 
+/* Settings Icon and Modal Styles */
+.settings-icon {
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    transition: transform 0.3s;
+}
+
+.settings-icon:hover {
+    transform: rotate(45deg);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6);
+}
+
+.modal-content {
+    background-color: #2193b0;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    border-radius: 15px;
+    width: 80%;
+    max-width: 500px;
+    color: #fff;
+}
+
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#thresholds-form .form-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+#thresholds-form label {
+    margin-bottom: 5px;
+}
+
+#thresholds-form input {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #333;
+}
+
+#thresholds-form button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    background-color: #fff;
+    color: #005f73;
+    cursor: pointer;
+}
+
 @media (max-width: 768px) {
     body {
         padding: 10px;
@@ -311,6 +418,7 @@ h1 {
         padding-bottom: 10px;
         -ms-overflow-style: none;
         scrollbar-width: none;
+        scroll-snap-type: x mandatory;
     }
 
     #weather-forecast::-webkit-scrollbar {
@@ -326,6 +434,7 @@ h1 {
     .day-forecast {
         flex: 0 0 140px;
         padding: 15px;
+        scroll-snap-align: start;
     }
 
     .day-forecast h2 {
