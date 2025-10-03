@@ -7,7 +7,7 @@ This is a simple web application designed to help users determine if it's a good
 *   **Severe Weather Alerts**: Displays any active severe weather alerts from the US National Weather Service for the user's location.
 *   **8-Day Weather Forecast**: Displays a detailed 8-day forecast with weather descriptions. On mobile, the forecast uses CSS scroll-snap for a clean, user-friendly horizontal scrolling experience.
 *   **Customizable "Good Boating Day" Indicator**: Quickly see if it's a good day for boating. Users can click the settings icon to customize the thresholds for wind, precipitation, and temperature to match their preferences.
-*   **Synchronized Hourly Charts**: Three interactive line charts display hourly wind speed, precipitation probability, and tide levels. The charts are synchronized, so hovering over one shows a crosshair and tooltip on all three.
+*   **Synchronized Hourly Charts**: Four interactive line charts display hourly wind speed, precipitation probability, temperature, and tide levels. The charts are synchronized, so hovering over one shows a crosshair and tooltip on all four.
 *   **Human-Readable Location**: When using geolocation, the application uses reverse geocoding to display a user-friendly location name (e.g., "San Francisco, California") instead of just "Current Location."
 *   **Loading Indicator**: A loading spinner is displayed while weather data is being fetched to provide better user feedback.
 *   **Embedded Radar Map**: An interactive weather radar map from the US National Weather Service (`radar.weather.gov`) is embedded at the bottom of the page.
