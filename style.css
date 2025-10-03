@@ -249,9 +249,16 @@ h1 {
     opacity: 0.8;
 }
 
-#tide-chart-container {
-    height: 300px;
+#charts-container {
     margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.chart-container {
+    height: 250px;
+    position: relative;
 }
 
 #radar-map-container {

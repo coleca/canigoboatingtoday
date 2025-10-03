@@ -1,4 +1,4 @@
-let tideChart;
+let windChart, precipitationChart, tideChart;
 
 document.addEventListener('DOMContentLoaded', () => {
     const locationForm = document.getElementById('location-form');
@@ -193,33 +193,38 @@ function displayHourlyForecast(dayIndex, data) {
         }
     }
 
-    const tideChartContainer = document.getElementById('tide-chart-container');
-    if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
-        const hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
-        const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
-        const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
-        const sunrise = data.daily.sunrise[dayIndex];
-        const sunset = data.daily.sunset[dayIndex];
-        const hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
+    const chartsContainer = document.getElementById('charts-container');
+    const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
+    const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
+    const hourlyPrecipitationData = data.hourly.precipitation_probability.slice(startIndex, endIndex);
+    const sunrise = data.daily.sunrise[dayIndex];
+    const sunset = data.daily.sunset[dayIndex];
 
-        if (hasTideData) {
-            tideChartContainer.style.display = 'block';
-            displayTideChart(hourlyTimeData, hourlyTideData, hourlyWindData, sunrise, sunset);
-        } else {
-            tideChartContainer.style.display = 'none';
-        }
-    } else {
-        tideChartContainer.style.display = 'none';
+    let hourlyTideData = null;
+    let hasTideData = false;
+
+    if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
+        hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
+        hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
     }
+
+    const tideChartElement = document.getElementById('tide-chart');
+    if (tideChartElement) {
+        tideChartElement.parentElement.style.display = hasTideData ? 'block' : 'none';
+    }
+    document.querySelector('.tide-disclaimer').style.display = hasTideData ? 'block' : 'none';
+
+    chartsContainer.style.display = 'block';
+    displayHourlyCharts(hourlyTimeData, hourlyWindData, hourlyPrecipitationData, hourlyTideData, sunrise, sunset);
 }
 
-function displayTideChart(timeData, tideData, windSpeedData, sunrise, sunset) {
-    const ctx = document.getElementById('tide-chart').getContext('2d');
-    if (tideChart) {
-        tideChart.destroy();
-    }
+function displayHourlyCharts(timeData, windData, precipitationData, tideData, sunrise, sunset) {
+    if (windChart) windChart.destroy();
+    if (precipitationChart) precipitationChart.destroy();
+    if (tideChart) tideChart.destroy();
 
     const labels = timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true }));
+
     const timeDataMs = timeData.map(t => new Date(t).getTime());
     const sunriseMs = new Date(sunrise).getTime();
     const sunsetMs = new Date(sunset).getTime();
@@ -235,119 +240,171 @@ function displayTideChart(timeData, tideData, windSpeedData, sunrise, sunset) {
     const sunriseIndex = findClosestIndex(timeDataMs, sunriseMs);
     const sunsetIndex = findClosestIndex(timeDataMs, sunsetMs);
 
-    tideChart = new Chart(ctx, {
+    const getCommonOptions = (title) => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                enabled: true,
+            },
+            annotation: {
+                annotations: {
+                    sunrise: {
+                        type: 'line',
+                        scaleID: 'x',
+                        value: sunriseIndex,
+                        borderColor: 'rgba(255, 206, 86, 0.8)',
+                        borderWidth: 2,
+                        label: {
+                            content: 'Sunrise',
+                            enabled: true,
+                            position: 'start',
+                            backgroundColor: 'rgba(255, 206, 86, 0.8)',
+                            color: '#000'
+                        }
+                    },
+                    sunset: {
+                        type: 'line',
+                        scaleID: 'x',
+                        value: sunsetIndex,
+                        borderColor: 'rgba(255, 159, 64, 0.8)',
+                        borderWidth: 2,
+                        label: {
+                            content: 'Sunset',
+                            enabled: true,
+                            position: 'start',
+                            backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                            color: '#000'
+                        }
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: 'rgba(255, 255, 255, 0.8)' },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            },
+            y: {
+                ticks: { color: 'rgba(255, 255, 255, 0.8)' },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                title: {
+                    display: true,
+                    text: title,
+                    color: 'rgba(255, 255, 255, 0.8)'
+                }
+            }
+        },
+    });
+
+    const syncCharts = (hoveredChart, index) => {
+        const charts = [windChart, precipitationChart, tideChart].filter(Boolean);
+        charts.forEach(chart => {
+            if (chart !== hoveredChart) {
+                const tooltip = chart.tooltip;
+                const activeElements = tooltip.getActiveElements();
+                if (activeElements.length === 0 || activeElements[0].index !== index) {
+                    tooltip.setActiveElements([{ datasetIndex: 0, index: index }], {x:0, y:0});
+                    chart.update();
+                }
+            }
+        });
+    };
+
+    const clearSync = (chart) => {
+        const charts = [windChart, precipitationChart, tideChart].filter(Boolean);
+        setTimeout(() => {
+            const anyActive = charts.some(c => c.tooltip.getActiveElements().length > 0);
+            if (!anyActive) {
+                charts.forEach(c => {
+                    c.tooltip.setActiveElements([], {x:0, y:0});
+                    c.update();
+                });
+            }
+        }, 300); // A small delay to prevent flickering
+    };
+
+    const windOptions = getCommonOptions('Wind Speed (mph)');
+    windOptions.onHover = (event, chartElement, chart) => {
+        if (chartElement.length > 0) syncCharts(chart, chartElement[0].index);
+        else clearSync(chart);
+    };
+
+    const precipOptions = getCommonOptions('Precipitation (%)');
+    precipOptions.onHover = (event, chartElement, chart) => {
+        if (chartElement.length > 0) syncCharts(chart, chartElement[0].index);
+        else clearSync(chart);
+    };
+
+    const tideOptions = getCommonOptions('Tide Height (ft)');
+    tideOptions.onHover = (event, chartElement, chart) => {
+        if (chartElement.length > 0) syncCharts(chart, chartElement[0].index);
+        else clearSync(chart);
+    };
+
+
+    // Wind Chart
+    const windCtx = document.getElementById('wind-chart').getContext('2d');
+    windChart = new Chart(windCtx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels,
             datasets: [{
-                label: 'Tide Height (ft)',
-                data: tideData,
+                label: 'Wind Speed',
+                data: windData,
+                borderColor: 'rgba(255, 99, 132, 0.8)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                fill: true,
+                tension: 0.4,
+            }]
+        },
+        options: windOptions
+    });
+
+    // Precipitation Chart
+    const precipitationCtx = document.getElementById('precipitation-chart').getContext('2d');
+    precipitationChart = new Chart(precipitationCtx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Precipitation',
+                data: precipitationData,
                 borderColor: 'rgba(54, 162, 235, 0.8)',
                 backgroundColor: 'rgba(54, 162, 235, 0.2)',
                 fill: true,
                 tension: 0.4,
-                yAxisID: 'y',
-            }, {
-                label: 'Wind Speed (mph)',
-                data: windSpeedData,
-                borderColor: 'rgba(255, 99, 132, 0.8)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                fill: false,
-                tension: 0.4,
-                yAxisID: 'y1',
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    labels: {
-                        color: 'rgba(255, 255, 255, 0.8)'
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                },
-                annotation: {
-                    annotations: {
-                        sunrise: {
-                            type: 'line',
-                            scaleID: 'x',
-                            value: sunriseIndex,
-                            borderColor: 'rgba(255, 206, 86, 0.8)',
-                            borderWidth: 2,
-                            label: {
-                                content: 'Sunrise',
-                                enabled: true,
-                                position: 'start',
-                                backgroundColor: 'rgba(255, 206, 86, 0.8)',
-                                color: '#000'
-                            }
-                        },
-                        sunset: {
-                            type: 'line',
-                            scaleID: 'x',
-                            value: sunsetIndex,
-                            borderColor: 'rgba(255, 159, 64, 0.8)',
-                            borderWidth: 2,
-                            label: {
-                                content: 'Sunset',
-                                enabled: true,
-                                position: 'start',
-                                backgroundColor: 'rgba(255, 159, 64, 0.8)',
-                                color: '#000'
-                            }
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: {
-                        color: 'rgba(255, 255, 255, 0.8)'
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: {
-                        display: true,
-                        text: 'Tide Height (ft)',
-                        color: 'rgba(255, 255, 255, 0.8)'
-                    },
-                    ticks: {
-                        color: 'rgba(255, 255, 255, 0.8)'
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: {
-                        display: true,
-                        text: 'Wind Speed (mph)',
-                        color: 'rgba(255, 255, 255, 0.8)'
-                    },
-                    ticks: {
-                        color: 'rgba(255, 255, 255, 0.8)'
-                    },
-                    grid: {
-                        drawOnChartArea: false,
-                    },
-                }
-            }
-        }
+        options: precipOptions
     });
+
+    // Tide Chart
+    if (tideData && tideData.some(t => t !== null && !isNaN(t))) {
+        const tideCtx = document.getElementById('tide-chart').getContext('2d');
+        tideChart = new Chart(tideCtx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Tide Height',
+                    data: tideData,
+                    borderColor: 'rgba(75, 192, 192, 0.8)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    tension: 0.4,
+                }]
+            },
+            options: tideOptions
+        });
+    } else {
+        tideChart = null;
+    }
 }
 
 
