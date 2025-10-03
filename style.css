@@ -42,6 +42,25 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+#weather-alerts {
+    width: 95%;
+    max-width: 1400px;
+    margin-bottom: 20px;
+}
+
+.weather-alert {
+    background-color: #ffc107;
+    color: #333;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.weather-alert h3 {
+    margin-top: 0;
+}
+
 .title-container {
     display: flex;
     align-items: center;
