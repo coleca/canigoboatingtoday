@@ -1,3 +1,5 @@
+let tideChart;
+
 document.addEventListener('DOMContentLoaded', () => {
     const locationForm = document.getElementById('location-form');
     locationForm.addEventListener('submit', (e) => {
@@ -190,6 +192,92 @@ function displayHourlyForecast(dayIndex, data) {
     weatherDescriptionElement.classList.add('weather-description');
     weatherDescriptionElement.textContent = getWeatherDescription(data.daily.weather_code[dayIndex]);
     hourlyContainer.appendChild(weatherDescriptionElement);
+
+    const tideChartContainer = document.getElementById('tide-chart-container');
+    if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
+        const hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
+        const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
+        const hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
+
+        if (hasTideData) {
+            tideChartContainer.style.display = 'block';
+            displayTideChart(hourlyTimeData, hourlyTideData);
+        } else {
+            tideChartContainer.style.display = 'none';
+        }
+    } else {
+        tideChartContainer.style.display = 'none';
+    }
+}
+
+function displayTideChart(timeData, tideData) {
+    const ctx = document.getElementById('tide-chart').getContext('2d');
+    if (tideChart) {
+        tideChart.destroy();
+    }
+    tideChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true })),
+            datasets: [{
+                label: 'Tide Height (ft)',
+                data: tideData,
+                borderColor: 'rgba(255, 255, 255, 0.8)',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 2,
+                pointBackgroundColor: 'rgba(255, 255, 255, 0.8)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += context.parsed.y.toFixed(2) + ' ft';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Tide Height (ft)',
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            }
+        }
+    });
 }
 
 
@@ -217,7 +305,7 @@ function displayRadarMap(lat, lon) {
 }
 
 function isGoodBoatingDay(hourly, dayIndex) {
-    const maxWind = 10 * 1.151; // 10 knots in mph
+    const maxWind = 12 * 1.151; // 12 knots in mph
     const maxPrecip = 25; // %
     const minTemp = 60; // F
     const maxTemp = 90; // F

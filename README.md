@@ -4,11 +4,12 @@ This is a simple web application designed to help users determine if it's a good
 
 ## Features
 
-*   **8-Day Weather Forecast**: Displays the weather forecast for the next 8 days, including the current day. Each day shows the weather conditions, max/min temperatures, and sunrise/sunset times.
+*   **8-Day Weather Forecast**: Displays the weather forecast for the next 8 days. On mobile, the forecast scrolls horizontally for a better user experience.
 *   **Hourly Forecast**: Users can click on any day to view a detailed hourly forecast. This includes wind speed, precipitation probability, and tide information (where available).
-*   **Embedded Radar Map**: An interactive weather radar map from meteoblue is embedded at the bottom of the page, showing precipitation and other weather layers.
-*   **Geolocation**: The application automatically detects the user's location to provide a local weather forecast. A default location (New York) is used if geolocation is unavailable.
-*   **Responsive Design**: The application is designed to be responsive and work on a variety of screen sizes.
+*   **Good Boating Day Indicator**: Quickly see if it's a good day for boating based on wind (under 12 knots), precipitation, and temperature.
+*   **Tide Chart**: For coastal locations, a line graph displays the tide throughout the day.
+*   **Embedded Radar Map**: An interactive weather radar map from meteoblue is embedded at the bottom of the page.
+*   **Geolocation**: The application automatically detects the user's location to provide a local weather forecast.
 
 ## Data Sources
 
@@ -23,6 +24,7 @@ This project utilizes several free data sources to provide a comprehensive weath
 *   **HTML5**: The structure of the web application.
 *   **CSS3**: Used for styling the application, including a colorful and friendly "boating" theme with a responsive layout.
 *   **JavaScript (ES6+)**: Powers the application's logic, including API calls, data processing, and dynamic content generation.
+*   **Chart.js**: Used to create the interactive tide chart.
 *   **Playwright**: Used for automated end-to-end testing and verification of the application's features and design.
 
 ## How to Use
