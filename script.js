@@ -1,4 +1,4 @@
-let windChart, precipitationChart, tideChart;
+let windChart, precipitationChart, temperatureChart, tideChart;
 let lastWeatherData = null;
 
 function showLoader() {
@@ -145,24 +145,14 @@ function reverseGeocode(lat, lon) {
 }
 
 function getWeatherAlerts(lat, lon) {
-    const reverseGeocodeApiUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const alertsApiUrl = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
 
-    fetch(reverseGeocodeApiUrl)
+    fetch(alertsApiUrl)
         .then(response => response.json())
-        .then(data => {
-            if (data.principalSubdivisionCode) {
-                const state = data.principalSubdivisionCode.split('-').pop(); // Get 'US-XX' -> 'XX'
-                const alertsApiUrl = `https://api.weather.gov/alerts/active?area=${state}`;
-
-                fetch(alertsApiUrl)
-                    .then(response => response.json())
-                    .then(alertData => {
-                        displayWeatherAlerts(alertData);
-                    })
-                    .catch(error => console.error('Error fetching weather alerts:', error));
-            }
+        .then(alertData => {
+            displayWeatherAlerts(alertData);
         })
-        .catch(error => console.error('Error fetching state for weather alerts:', error));
+        .catch(error => console.error('Error fetching weather alerts:', error));
 }
 
 function displayWeatherAlerts(alertData) {
@@ -316,6 +306,7 @@ function displayHourlyForecast(dayIndex, data) {
     const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
     const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
     const hourlyPrecipitationData = data.hourly.precipitation_probability.slice(startIndex, endIndex);
+    const hourlyTemperatureData = data.hourly.temperature_2m.slice(startIndex, endIndex);
     const sunrise = data.daily.sunrise[dayIndex];
     const sunset = data.daily.sunset[dayIndex];
 
@@ -334,12 +325,13 @@ function displayHourlyForecast(dayIndex, data) {
     document.querySelector('.tide-disclaimer').style.display = hasTideData ? 'block' : 'none';
 
     chartsContainer.style.display = 'block';
-    displayHourlyCharts(hourlyTimeData, hourlyWindData, hourlyPrecipitationData, hourlyTideData, sunrise, sunset);
+    displayHourlyCharts(hourlyTimeData, hourlyWindData, hourlyPrecipitationData, hourlyTemperatureData, hourlyTideData, sunrise, sunset);
 }
 
-function displayHourlyCharts(timeData, windData, precipitationData, tideData, sunrise, sunset) {
+function displayHourlyCharts(timeData, windData, precipitationData, temperatureData, tideData, sunrise, sunset) {
     if (windChart) windChart.destroy();
     if (precipitationChart) precipitationChart.destroy();
+    if (temperatureChart) temperatureChart.destroy();
     if (tideChart) tideChart.destroy();
 
     const labels = timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true }));
@@ -422,7 +414,7 @@ function displayHourlyCharts(timeData, windData, precipitationData, tideData, su
     });
 
     const syncCharts = (hoveredChart, index) => {
-        const charts = [windChart, precipitationChart, tideChart].filter(Boolean);
+        const charts = [windChart, precipitationChart, temperatureChart, tideChart].filter(Boolean);
         charts.forEach(chart => {
             if (chart !== hoveredChart) {
                 const tooltip = chart.tooltip;
@@ -436,7 +428,7 @@ function displayHourlyCharts(timeData, windData, precipitationData, tideData, su
     };
 
     const clearSync = (chart) => {
-        const charts = [windChart, precipitationChart, tideChart].filter(Boolean);
+        const charts = [windChart, precipitationChart, temperatureChart, tideChart].filter(Boolean);
         setTimeout(() => {
             const anyActive = charts.some(c => c.tooltip.getActiveElements().length > 0);
             if (!anyActive) {
@@ -455,7 +447,15 @@ function displayHourlyCharts(timeData, windData, precipitationData, tideData, su
     };
 
     const precipOptions = getCommonOptions('Precipitation (%)');
+    precipOptions.scales.y.min = 0;
+    precipOptions.scales.y.max = 100;
     precipOptions.onHover = (event, chartElement, chart) => {
+        if (chartElement.length > 0) syncCharts(chart, chartElement[0].index);
+        else clearSync(chart);
+    };
+
+    const tempOptions = getCommonOptions('Temperature (°F)');
+    tempOptions.onHover = (event, chartElement, chart) => {
         if (chartElement.length > 0) syncCharts(chart, chartElement[0].index);
         else clearSync(chart);
     };
@@ -503,6 +503,24 @@ function displayHourlyCharts(timeData, windData, precipitationData, tideData, su
         options: precipOptions
     });
 
+    // Temperature Chart
+    const temperatureCtx = document.getElementById('temperature-chart').getContext('2d');
+    temperatureChart = new Chart(temperatureCtx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Temperature',
+                data: temperatureData,
+                borderColor: 'rgba(255, 206, 86, 0.8)',
+                backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                fill: true,
+                tension: 0.4,
+            }]
+        },
+        options: tempOptions
+    });
+
     // Tide Chart
     if (tideData && tideData.some(t => t !== null && !isNaN(t))) {
         const tideCtx = document.getElementById('tide-chart').getContext('2d');
@@ -543,7 +561,7 @@ function displayRadarMap(lat, lon) {
     radarContainer.innerHTML = '';
 
     const iframe = document.createElement('iframe');
-    iframe.src = `https://radar.weather.gov/?settings=v1_v=1_w=1_p=11_z=8_c=${lat},${lon}_i=N0R_l=1_o=1_s=0_e=0`;
+    iframe.src = `https://www.meteoblue.com/en/weather/maps/widget/?windAnimation=0&gust=0&satellite=0&clouds_precipitation=1&temperature=0&sunshine=0&extreme=0&geoloc=fixed&lat=${lat}&lon=${lon}&zoom=8&autowidth=auto`;
     iframe.style.width = '100%';
     iframe.style.height = '400px';
     iframe.style.border = 'none';
