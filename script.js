@@ -117,6 +117,11 @@ function displayWeather(data, locationName) {
         dayDiv.appendChild(sunriseSunsetElement);
         dayDiv.appendChild(boatingDayElement);
 
+        const weatherDescriptionElement = document.createElement('p');
+        weatherDescriptionElement.classList.add('weather-description');
+        weatherDescriptionElement.textContent = getWeatherDescription(daily.weather_code[i]);
+        dayDiv.appendChild(weatherDescriptionElement);
+
         forecastContainer.appendChild(dayDiv);
     }
 
@@ -188,20 +193,18 @@ function displayHourlyForecast(dayIndex, data) {
         }
     }
 
-    const weatherDescriptionElement = document.createElement('p');
-    weatherDescriptionElement.classList.add('weather-description');
-    weatherDescriptionElement.textContent = getWeatherDescription(data.daily.weather_code[dayIndex]);
-    hourlyContainer.appendChild(weatherDescriptionElement);
-
     const tideChartContainer = document.getElementById('tide-chart-container');
     if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
         const hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
         const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
+        const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
+        const sunrise = data.daily.sunrise[dayIndex];
+        const sunset = data.daily.sunset[dayIndex];
         const hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
 
         if (hasTideData) {
             tideChartContainer.style.display = 'block';
-            displayTideChart(hourlyTimeData, hourlyTideData);
+            displayTideChart(hourlyTimeData, hourlyTideData, hourlyWindData, sunrise, sunset);
         } else {
             tideChartContainer.style.display = 'none';
         }
@@ -210,24 +213,48 @@ function displayHourlyForecast(dayIndex, data) {
     }
 }
 
-function displayTideChart(timeData, tideData) {
+function displayTideChart(timeData, tideData, windSpeedData, sunrise, sunset) {
     const ctx = document.getElementById('tide-chart').getContext('2d');
     if (tideChart) {
         tideChart.destroy();
     }
+
+    const labels = timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true }));
+    const timeDataMs = timeData.map(t => new Date(t).getTime());
+    const sunriseMs = new Date(sunrise).getTime();
+    const sunsetMs = new Date(sunset).getTime();
+
+    const findClosestIndex = (times, targetTime) => {
+        return times.reduce((prev, curr, index) => {
+            const prevDiff = Math.abs(targetTime - times[prev]);
+            const currDiff = Math.abs(targetTime - curr);
+            return currDiff < prevDiff ? index : prev;
+        }, 0);
+    };
+
+    const sunriseIndex = findClosestIndex(timeDataMs, sunriseMs);
+    const sunsetIndex = findClosestIndex(timeDataMs, sunsetMs);
+
     tideChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true })),
+            labels: labels,
             datasets: [{
                 label: 'Tide Height (ft)',
                 data: tideData,
-                borderColor: 'rgba(255, 255, 255, 0.8)',
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 0.8)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
                 fill: true,
                 tension: 0.4,
-                pointRadius: 2,
-                pointBackgroundColor: 'rgba(255, 255, 255, 0.8)'
+                yAxisID: 'y',
+            }, {
+                label: 'Wind Speed (mph)',
+                data: windSpeedData,
+                borderColor: 'rgba(255, 99, 132, 0.8)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                fill: false,
+                tension: 0.4,
+                yAxisID: 'y1',
             }]
         },
         options: {
@@ -235,19 +262,44 @@ function displayTideChart(timeData, tideData) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false
+                    display: true,
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    }
                 },
                 tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
+                    mode: 'index',
+                    intersect: false,
+                },
+                annotation: {
+                    annotations: {
+                        sunrise: {
+                            type: 'line',
+                            scaleID: 'x',
+                            value: sunriseIndex,
+                            borderColor: 'rgba(255, 206, 86, 0.8)',
+                            borderWidth: 2,
+                            label: {
+                                content: 'Sunrise',
+                                enabled: true,
+                                position: 'start',
+                                backgroundColor: 'rgba(255, 206, 86, 0.8)',
+                                color: '#000'
                             }
-                            if (context.parsed.y !== null) {
-                                label += context.parsed.y.toFixed(2) + ' ft';
+                        },
+                        sunset: {
+                            type: 'line',
+                            scaleID: 'x',
+                            value: sunsetIndex,
+                            borderColor: 'rgba(255, 159, 64, 0.8)',
+                            borderWidth: 2,
+                            label: {
+                                content: 'Sunset',
+                                enabled: true,
+                                position: 'start',
+                                backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                                color: '#000'
                             }
-                            return label;
                         }
                     }
                 }
@@ -262,7 +314,9 @@ function displayTideChart(timeData, tideData) {
                     }
                 },
                 y: {
-                    beginAtZero: false,
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
                     title: {
                         display: true,
                         text: 'Tide Height (ft)',
@@ -274,6 +328,22 @@ function displayTideChart(timeData, tideData) {
                     grid: {
                         color: 'rgba(255, 255, 255, 0.1)'
                     }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Wind Speed (mph)',
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
                 }
             }
         }
