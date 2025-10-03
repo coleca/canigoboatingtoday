@@ -246,6 +246,11 @@ h1 {
     opacity: 0.8;
 }
 
+#tide-chart-container {
+    height: 300px;
+    margin-top: 20px;
+}
+
 #radar-map-container {
     width: 95%;
     max-width: 1400px;
@@ -289,9 +294,17 @@ h1 {
     }
 
     #weather-forecast {
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        overflow-x: auto;
         width: 100%;
         gap: 10px;
+        padding-bottom: 10px;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    #weather-forecast::-webkit-scrollbar {
+        display: none;
     }
 
     #hourly-forecast-container,
@@ -301,6 +314,7 @@ h1 {
     }
 
     .day-forecast {
+        flex: 0 0 140px;
         padding: 15px;
     }
 
