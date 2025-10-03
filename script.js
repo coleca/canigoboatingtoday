@@ -1,18 +1,29 @@
 let windChart, precipitationChart, tideChart;
+let lastWeatherData = null;
+
+function showLoader() {
+    document.getElementById('loader-overlay').classList.add('visible');
+}
+
+function hideLoader() {
+    document.getElementById('loader-overlay').classList.remove('visible');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const locationForm = document.getElementById('location-form');
     locationForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        showLoader();
         const locationInput = document.getElementById('location-input');
         geocodeAndGetWeather(locationInput.value);
     });
 
+    showLoader();
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(position => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            getWeather(lat, lon, "Current Location");
+            reverseGeocode(lat, lon);
         }, error => {
             console.error("Error getting location: ", error);
             geocodeAndGetWeather("New York");
@@ -21,6 +32,54 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("Geolocation is not supported by this browser.");
         geocodeAndGetWeather("New York");
     }
+
+    // Settings Modal Logic
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsIcon = document.getElementById('settings-icon');
+    const closeButton = document.querySelector('.close-button');
+
+    settingsIcon.addEventListener('click', () => {
+        settingsModal.style.display = 'block';
+    });
+
+    closeButton.addEventListener('click', () => {
+        settingsModal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (event) => {
+        if (event.target === settingsModal) {
+            settingsModal.style.display = 'none';
+        }
+    });
+
+    const thresholdsForm = document.getElementById('thresholds-form');
+    thresholdsForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        userThresholds.maxWind = parseInt(document.getElementById('max-wind').value, 10);
+        userThresholds.maxPrecip = parseInt(document.getElementById('max-precip').value, 10);
+        userThresholds.minTemp = parseInt(document.getElementById('min-temp').value, 10);
+        userThresholds.maxTemp = parseInt(document.getElementById('max-temp').value, 10);
+
+        localStorage.setItem('userThresholds', JSON.stringify(userThresholds));
+        settingsModal.style.display = 'none';
+
+        if (lastWeatherData) {
+            displayWeather(lastWeatherData.data, lastWeatherData.locationName);
+        }
+    });
+
+    function loadThresholds() {
+        const savedThresholds = localStorage.getItem('userThresholds');
+        if (savedThresholds) {
+            userThresholds = JSON.parse(savedThresholds);
+        }
+        document.getElementById('max-wind').value = userThresholds.maxWind;
+        document.getElementById('max-precip').value = userThresholds.maxPrecip;
+        document.getElementById('min-temp').value = userThresholds.minTemp;
+        document.getElementById('max-temp').value = userThresholds.maxTemp;
+    }
+
+    loadThresholds();
 });
 
 function geocodeAndGetWeather(locationName) {
@@ -39,6 +98,7 @@ function geocodeAndGetWeather(locationName) {
         .catch(error => {
             console.error('Error fetching geocoding data:', error);
             alert("An error occurred while fetching the location. Please try again.");
+            hideLoader();
         });
 }
 
@@ -58,11 +118,28 @@ function getWeather(lat, lon, locationName) {
             console.warn("Could not retrieve marine data. This is expected for inland locations.");
             combinedData.marine = null;
         }
+        lastWeatherData = { data: combinedData, locationName: locationName };
         displayWeather(combinedData, locationName);
     })
     .catch(error => {
         console.error('Error fetching weather data:', error);
+        hideLoader();
     });
+}
+
+function reverseGeocode(lat, lon) {
+    const reverseGeocodeApiUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+
+    fetch(reverseGeocodeApiUrl)
+        .then(response => response.json())
+        .then(data => {
+            const locationName = data.city ? `${data.city}, ${data.principalSubdivision}` : "Current Location";
+            getWeather(lat, lon, locationName);
+        })
+        .catch(error => {
+            console.error('Error fetching reverse geocoding data:', error);
+            getWeather(lat, lon, "Current Location"); // Fallback
+        });
 }
 
 function displayWeather(data, locationName) {
@@ -127,6 +204,7 @@ function displayWeather(data, locationName) {
 
     // Automatically display the hourly forecast for the current day (index 0)
     displayHourlyForecast(0, data);
+    hideLoader();
 }
 
 function displayHourlyForecast(dayIndex, data) {
@@ -431,11 +509,18 @@ function displayRadarMap(lat, lon) {
     radarContainer.appendChild(iframe);
 }
 
+let userThresholds = {
+    maxWind: 12, // knots
+    maxPrecip: 25,
+    minTemp: 60,
+    maxTemp: 90,
+};
+
 function isGoodBoatingDay(hourly, dayIndex) {
-    const maxWind = 12 * 1.151; // 12 knots in mph
-    const maxPrecip = 25; // %
-    const minTemp = 60; // F
-    const maxTemp = 90; // F
+    const maxWind = userThresholds.maxWind * 1.151; // Convert knots to mph
+    const maxPrecip = userThresholds.maxPrecip;
+    const minTemp = userThresholds.minTemp;
+    const maxTemp = userThresholds.maxTemp;
 
     const startIndex = dayIndex * 24;
     const endIndex = startIndex + 24;

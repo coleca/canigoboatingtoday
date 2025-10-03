@@ -4,17 +4,19 @@ This is a simple web application designed to help users determine if it's a good
 
 ## Features
 
-*   **8-Day Weather Forecast**: Displays a detailed 8-day forecast, including a short weather description for each day. On mobile, the forecast scrolls horizontally.
-*   **Good Boating Day Indicator**: Quickly see if it's a good day for boating based on wind (under 12 knots), precipitation, and temperature.
-*   **Synchronized Hourly Charts**: For a comprehensive hourly view, three interactive line charts display wind speed, precipitation probability, and tide levels. The charts are synchronized, so hovering over one will show a tooltip and crosshair on all three at the same time point.
+*   **8-Day Weather Forecast**: Displays a detailed 8-day forecast with weather descriptions. On mobile, the forecast uses CSS scroll-snap for a clean, user-friendly horizontal scrolling experience.
+*   **Customizable "Good Boating Day" Indicator**: Quickly see if it's a good day for boating. Users can click the settings icon to customize the thresholds for wind, precipitation, and temperature to match their preferences.
+*   **Synchronized Hourly Charts**: Three interactive line charts display hourly wind speed, precipitation probability, and tide levels. The charts are synchronized, so hovering over one shows a crosshair and tooltip on all three.
+*   **Human-Readable Location**: When using geolocation, the application uses reverse geocoding to display a user-friendly location name (e.g., "San Francisco, California") instead of just "Current Location."
+*   **Loading Indicator**: A loading spinner is displayed while weather data is being fetched to provide better user feedback.
 *   **Embedded Radar Map**: An interactive weather radar map from meteoblue is embedded at the bottom of the page.
-*   **Geolocation**: The application automatically detects the user's location to provide a local weather forecast.
 
 ## Data Sources
 
 This project utilizes several free data sources to provide a comprehensive weather overview:
 
-*   **Open-Meteo API**: The primary source for weather forecast data, including daily and hourly forecasts, temperature, wind speed, precipitation, and sunrise/sunset times.
+*   **Open-Meteo API**: The primary source for weather forecast data.
+*   **BigDataCloud API**: Used for free, fast reverse geocoding to convert coordinates into a human-readable location name.
 *   **meteoblue Weather Maps Widget**: Provides the embedded weather radar map.
 *   **weather-icons**: A font and CSS library used for the weather-themed icons in the application.
 
