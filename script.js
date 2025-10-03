@@ -90,6 +90,7 @@ function geocodeAndGetWeather(locationName) {
         .then(data => {
             if (data.results && data.results.length > 0) {
                 const location = data.results[0];
+                getWeatherAlerts(location.latitude, location.longitude);
                 getWeather(location.latitude, location.longitude, location.name);
             } else {
                 alert("Could not find location. Please try again.");
@@ -134,12 +135,52 @@ function reverseGeocode(lat, lon) {
         .then(response => response.json())
         .then(data => {
             const locationName = data.city ? `${data.city}, ${data.principalSubdivision}` : "Current Location";
+            getWeatherAlerts(lat, lon);
             getWeather(lat, lon, locationName);
         })
         .catch(error => {
             console.error('Error fetching reverse geocoding data:', error);
             getWeather(lat, lon, "Current Location"); // Fallback
         });
+}
+
+function getWeatherAlerts(lat, lon) {
+    const reverseGeocodeApiUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+
+    fetch(reverseGeocodeApiUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.principalSubdivisionCode) {
+                const state = data.principalSubdivisionCode.split('-').pop(); // Get 'US-XX' -> 'XX'
+                const alertsApiUrl = `https://api.weather.gov/alerts/active?area=${state}`;
+
+                fetch(alertsApiUrl)
+                    .then(response => response.json())
+                    .then(alertData => {
+                        displayWeatherAlerts(alertData);
+                    })
+                    .catch(error => console.error('Error fetching weather alerts:', error));
+            }
+        })
+        .catch(error => console.error('Error fetching state for weather alerts:', error));
+}
+
+function displayWeatherAlerts(alertData) {
+    const alertsContainer = document.getElementById('weather-alerts');
+    alertsContainer.innerHTML = '';
+
+    if (alertData.features && alertData.features.length > 0) {
+        alertData.features.forEach(alert => {
+            const alertDiv = document.createElement('div');
+            alertDiv.classList.add('weather-alert');
+            alertDiv.innerHTML = `
+                <h3>${alert.properties.headline}</h3>
+                <p><strong>Effective:</strong> ${new Date(alert.properties.effective).toLocaleString()}</p>
+                <p>${alert.properties.description}</p>
+            `;
+            alertsContainer.appendChild(alertDiv);
+        });
+    }
 }
 
 function displayWeather(data, locationName) {
@@ -502,7 +543,7 @@ function displayRadarMap(lat, lon) {
     radarContainer.innerHTML = '';
 
     const iframe = document.createElement('iframe');
-    iframe.src = `https://www.meteoblue.com/en/weather/maps/widget/?windAnimation=0&gust=0&satellite=0&clouds_precipitation=1&temperature=0&sunshine=0&extreme=0&geoloc=fixed&lat=${lat}&lon=${lon}&zoom=8&autowidth=auto`;
+    iframe.src = `https://radar.weather.gov/?settings=v1_v=1_w=1_p=11_z=8_c=${lat},${lon}_i=N0R_l=1_o=1_s=0_e=0`;
     iframe.style.width = '100%';
     iframe.style.height = '400px';
     iframe.style.border = 'none';
