@@ -1,4 +1,4 @@
-let windChart, precipitationChart, temperatureChart, tideChart;
+let windChart, precipitationChart, temperatureChart, tideChart, radarMap;
 let lastWeatherData = null;
 
 function showLoader() {
@@ -487,14 +487,27 @@ function getWeatherIcon(code) {
 
 function displayRadarMap(lat, lon) {
     const radarContainer = document.getElementById('radar-map-container');
-    radarContainer.innerHTML = '';
+    radarContainer.innerHTML = ''; // Clear previous map
+    radarContainer.style.height = '400px';
 
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://www.meteoblue.com/en/weather/maps/widget/?windAnimation=0&gust=0&satellite=0&clouds_precipitation=1&temperature=0&sunshine=0&extreme=0&geoloc=fixed&lat=${lat}&lon=${lon}&zoom=8&autowidth=auto`;
-    iframe.style.width = '100%';
-    iframe.style.height = '400px';
-    iframe.style.border = 'none';
-    radarContainer.appendChild(iframe);
+    if (radarMap) {
+        radarMap.remove();
+    }
+
+    radarMap = L.map('radar-map-container').setView([lat, lon], 8);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(radarMap);
+
+    const nwsWmsUrl = 'https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms';
+    L.tileLayer.wms(nwsWmsUrl, {
+        layers: 'CREF',
+        format: 'image/png',
+        transparent: true,
+        opacity: 0.8,
+        attribution: 'NWS'
+    }).addTo(radarMap);
 }
 
 let userThresholds = {

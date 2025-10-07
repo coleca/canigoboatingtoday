@@ -188,7 +188,7 @@ h1 {
 .day-forecast img {
     width: 70px;
     height: 70px;
-    margin-bottom: 15px;
+    margin: 0 auto 15px;
 }
 
 .day-forecast .temp {
