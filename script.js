@@ -494,18 +494,20 @@ function displayRadarMap(lat, lon) {
         radarMap.remove();
     }
 
-    radarMap = L.map('radar-map-container').setView([lat, lon], 8);
+    radarMap = L.map('radar-map-container').setView([lat, lon], 10);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(radarMap);
 
     const nwsWmsUrl = 'https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms';
+    const isoTime = new Date().toISOString();
     L.tileLayer.wms(nwsWmsUrl, {
         layers: 'CREF',
         format: 'image/png',
         transparent: true,
         opacity: 0.8,
+        time: isoTime,
         attribution: 'NWS'
     }).addTo(radarMap);
 }
