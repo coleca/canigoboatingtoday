@@ -196,9 +196,13 @@ function getWeatherAlerts(lat, lon) {
 }
 
 async function getTideData(lat, lon) {
+    // NOTE: This function fetches the entire list of tide stations on the client-side
+    // to find the nearest one. This is inefficient and can cause significant latency.
+    // For a production application, a more efficient solution, such as a dedicated
+    // backend service or a more targeted API query, should be used.
     try {
         // 1. Fetch all tide prediction stations
-        const stationsUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/v1/webapi/stations.json?type=tidepredictions&units=english';
+        const stationsUrl = 'https://corsproxy.io/?https://api.tidesandcurrents.noaa.gov/mdapi/v1/webapi/stations.json?type=tidepredictions&units=english';
         const stationsResponse = await fetch(stationsUrl);
         const stationsData = await stationsResponse.json();
 
