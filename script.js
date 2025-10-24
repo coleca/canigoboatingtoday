@@ -1,4 +1,4 @@
-let windChart, precipitationChart, temperatureChart, tideChart, radarMap;
+let windChart, precipitationChart, temperatureChart, waveChart, tideChart, radarMap;
 let lastWeatherData = null;
 
 function showLoader() {
@@ -103,29 +103,65 @@ function geocodeAndGetWeather(locationName) {
         });
 }
 
-function getWeather(lat, lon, locationName) {
-    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
-    const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
+async function getWeather(lat, lon, locationName) {
+    const pointsApiUrl = `https://api.weather.gov/points/${lat},${lon}`;
 
-    Promise.all([
-        fetch(forecastApiUrl).then(response => response.json()),
-        fetch(marineApiUrl).then(response => response.json())
-    ])
-    .then(([forecastData, marineData]) => {
-        const combinedData = { ...forecastData };
-        if (marineData && !marineData.error) {
-            combinedData.marine = marineData;
-        } else {
-            console.warn("Could not retrieve marine data. This is expected for inland locations.");
-            combinedData.marine = null;
-        }
-        lastWeatherData = { data: combinedData, locationName: locationName };
-        displayWeather(combinedData, locationName);
-    })
-    .catch(error => {
-        console.error('Error fetching weather data:', error);
-        hideLoader();
-    });
+    try {
+        const pointsResponse = await fetch(pointsApiUrl, {
+            headers: { 'User-Agent': '(canigoboatingtoday.com, contact@canigoboatingtoday.com)' }
+        });
+        const pointsData = await pointsResponse.json();
+        const gridDataUrl = pointsData.properties.forecastGridData;
+
+        const gridDataResponse = await fetch(gridDataUrl, {
+            headers: { 'User-Agent': '(canigoboatingtoday.com, contact@canigoboatingtoday.com)' }
+        });
+        const gridData = await gridDataResponse.json();
+
+        // Also fetch the regular forecast for text descriptions and periods
+        const forecastUrl = pointsData.properties.forecast;
+        const forecastResponse = await fetch(forecastUrl, {
+            headers: { 'User-Agent': '(canigoboatingtoday.com, contact@canigoboatingtoday.com)' }
+        });
+        const forecastData = await forecastResponse.json();
+
+        const sunriseSunsetUrl = `https://api.sunrisesunset.io/json?lat=${lat}&lng=${lon}`;
+        const sunriseSunsetResponse = await fetch(sunriseSunsetUrl);
+        const sunriseSunsetData = await sunriseSunsetResponse.json();
+
+        const tideData = await getTideData(lat, lon);
+
+        const combinedData = { ...forecastData, gridData, sunriseSunset: sunriseSunsetData.results, tideData };
+
+        lastWeatherData = { data: combinedData, locationName: locationName, marine: true };
+        displayWeather(combinedData, locationName, lat, lon);
+
+    } catch (error) {
+        console.error('Error fetching weather data from NWS:', error);
+        // Fallback to Open-Meteo
+        const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
+        const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
+
+        Promise.all([
+            fetch(forecastApiUrl).then(response => response.json()),
+            fetch(marineApiUrl).then(response => response.json())
+        ])
+        .then(([forecastData, marineData]) => {
+            const combinedData = { ...forecastData };
+            if (marineData && !marineData.error) {
+                combinedData.marine = marineData;
+            } else {
+                console.warn("Could not retrieve marine data. This is expected for inland locations.");
+                combinedData.marine = null;
+            }
+            lastWeatherData = { data: combinedData, locationName: locationName };
+            displayWeather(combinedData, locationName);
+        })
+        .catch(error => {
+            console.error('Error fetching weather data:', error);
+            hideLoader();
+        });
+    }
 }
 
 function reverseGeocode(lat, lon) {
@@ -159,6 +195,53 @@ function getWeatherAlerts(lat, lon) {
         .catch(error => console.error('Error fetching weather alerts:', error));
 }
 
+async function getTideData(lat, lon) {
+    try {
+        // 1. Fetch all tide prediction stations
+        const stationsUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/v1/webapi/stations.json?type=tidepredictions&units=english';
+        const stationsResponse = await fetch(stationsUrl);
+        const stationsData = await stationsResponse.json();
+
+        // 2. Find the nearest station
+        let nearestStation = null;
+        let minDistance = Infinity;
+
+        stationsData.stations.forEach(station => {
+            const distance = Math.sqrt(Math.pow(lat - station.lat, 2) + Math.pow(lon - station.lng, 2));
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestStation = station;
+            }
+        });
+
+        if (!nearestStation) {
+            console.warn("Could not find a nearby tide station.");
+            return null;
+        }
+
+        // 3. Fetch tide data for the nearest station for the next 24 hours
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const formatDate = (date) => {
+            return `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+        };
+
+        const tideDataUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${formatDate(today)}&end_date=${formatDate(tomorrow)}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&format=json`;
+
+        const tideResponse = await fetch(tideDataUrl);
+        const tideData = await tideResponse.json();
+
+        return tideData.predictions || null;
+
+    } catch (error) {
+        console.error('Error fetching tide data:', error);
+        return null;
+    }
+}
+
+
 function displayWeatherAlerts(alertData) {
     const alertsContainer = document.getElementById('weather-alerts');
     alertsContainer.innerHTML = '';
@@ -178,165 +261,360 @@ function displayWeatherAlerts(alertData) {
     }
 }
 
-function displayWeather(data, locationName) {
+function displayWeather(data, locationName, lat, lon) {
     const currentLocationElement = document.getElementById('current-location');
     currentLocationElement.textContent = `Weather for: ${locationName}`;
 
     const forecastContainer = document.getElementById('weather-forecast');
     forecastContainer.innerHTML = '';
 
-    displayRadarMap(data.latitude, data.longitude);
-
-    const daily = data.daily;
-    const hourly = data.hourly;
-
-    for (let i = 0; i < daily.time.length; i++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.classList.add('day-forecast');
-        dayDiv.addEventListener('click', () => displayHourlyForecast(i, data));
-
-        // By appending 'T00:00', we ensure the date is parsed in the local timezone, preventing day-of-the-week errors.
-        const date = new Date(daily.time[i] + 'T00:00');
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-
-        const dayNameElement = document.createElement('h2');
-        dayNameElement.textContent = dayName;
-
-        const weatherIcon = document.createElement('img');
-        weatherIcon.src = getWeatherIcon(daily.weather_code[i]);
-        weatherIcon.alt = 'Weather icon';
-
-        const tempElement = document.createElement('p');
-        tempElement.classList.add('temp');
-        tempElement.innerHTML = `<span class="max">${Math.round(daily.temperature_2m_max[i])}°F</span> / ${Math.round(daily.temperature_2m_min[i])}°F`;
-
-        const sunrise = new Date(daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const sunset = new Date(daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const sunriseSunsetElement = document.createElement('div');
-        sunriseSunsetElement.classList.add('sunrise-sunset');
-        sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${sunrise}</div><div><i class="wi wi-sunset"></i> ${sunset}</div>`;
-
-        const goodBoatingDay = isGoodBoatingDay(hourly, i);
-        const boatingDayElement = document.createElement('div');
-        boatingDayElement.classList.add('boating-day');
-        boatingDayElement.innerHTML = `
-            <div>MORN: <span class="${goodBoatingDay.morning.isGood ? 'yes' : 'no'}">${goodBoatingDay.morning.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.morning.reason)}"></i></div>
-            <div>AFT: <span class="${goodBoatingDay.afternoon.isGood ? 'yes' : 'no'}">${goodBoatingDay.afternoon.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.afternoon.reason)}"></i></div>
-        `;
-
-        dayDiv.appendChild(dayNameElement);
-        dayDiv.appendChild(weatherIcon);
-        dayDiv.appendChild(tempElement);
-        dayDiv.appendChild(sunriseSunsetElement);
-        dayDiv.appendChild(boatingDayElement);
-
-        const weatherDescriptionElement = document.createElement('p');
-        weatherDescriptionElement.classList.add('weather-description');
-        weatherDescriptionElement.textContent = getWeatherDescription(daily.weather_code[i]);
-        dayDiv.appendChild(weatherDescriptionElement);
-
-        forecastContainer.appendChild(dayDiv);
+    if (lat && lon) {
+        displayRadarMap(lat, lon);
     }
 
-    // Automatically display the hourly forecast for the current day (index 0)
-    displayHourlyForecast(0, data);
-    hideLoader();
+    if (lastWeatherData.marine) { // NWS data source
+        const periods = data.properties.periods;
+
+        // Group periods by day
+        const days = {};
+        periods.forEach(period => {
+            const date = new Date(period.startTime).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            if (!days[date]) {
+                days[date] = [];
+            }
+            days[date].push(period);
+        });
+
+        const dayKeys = Object.keys(days).slice(0, 8);
+
+        dayKeys.forEach((dateKey, index) => {
+            const dayPeriods = days[dateKey];
+            const dayDiv = document.createElement('div');
+            dayDiv.classList.add('day-forecast');
+            dayDiv.addEventListener('click', () => displayHourlyForecast(index, data));
+
+            const date = new Date(dayPeriods[0].startTime);
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+
+            const dayNameElement = document.createElement('h2');
+            dayNameElement.textContent = dayName;
+
+            const temps = dayPeriods.map(p => p.temperature);
+            const maxTemp = Math.max(...temps);
+            const minTemp = Math.min(...temps);
+
+            const weatherIcon = document.createElement('img');
+            weatherIcon.src = mapNwsIconToAppIcon(dayPeriods.find(p => p.isDaytime)?.icon || dayPeriods[0].icon);
+            weatherIcon.alt = 'Weather icon';
+
+            const tempElement = document.createElement('p');
+            tempElement.classList.add('temp');
+            tempElement.innerHTML = `<span class="max">${Math.round(maxTemp)}°F</span> / ${Math.round(minTemp)}°F`;
+
+            const sunriseSunsetElement = document.createElement('div');
+            sunriseSunsetElement.classList.add('sunrise-sunset');
+            if (data.sunriseSunset) {
+                sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${data.sunriseSunset.sunrise}</div><div><i class="wi wi-sunset"></i> ${data.sunriseSunset.sunset}</div>`;
+            } else {
+                sunriseSunsetElement.innerHTML = `<div>&nbsp;</div><div>&nbsp;</div>`; // Placeholder
+            }
+
+            const goodBoatingDay = isGoodBoatingDayNWS(dayPeriods);
+            const boatingDayElement = document.createElement('div');
+            boatingDayElement.classList.add('boating-day');
+            boatingDayElement.innerHTML = `
+                <div>MORN: <span class="${goodBoatingDay.morning.isGood ? 'yes' : 'no'}">${goodBoatingDay.morning.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.morning.reason)}"></i></div>
+                <div>AFT: <span class="${goodBoatingDay.afternoon.isGood ? 'yes' : 'no'}">${goodBoatingDay.afternoon.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.afternoon.reason)}"></i></div>
+            `;
+
+            dayDiv.appendChild(dayNameElement);
+            dayDiv.appendChild(weatherIcon);
+            dayDiv.appendChild(tempElement);
+            dayDiv.appendChild(sunriseSunsetElement);
+            dayDiv.appendChild(boatingDayElement);
+
+            const weatherDescriptionElement = document.createElement('p');
+            weatherDescriptionElement.classList.add('weather-description');
+            weatherDescriptionElement.textContent = dayPeriods.find(p => p.isDaytime)?.shortForecast || dayPeriods[0].shortForecast;
+            dayDiv.appendChild(weatherDescriptionElement);
+
+            forecastContainer.appendChild(dayDiv);
+        });
+
+        displayHourlyForecast(0, data);
+        hideLoader();
+
+    } else { // Open-Meteo data source
+        const daily = data.daily;
+        const hourly = data.hourly;
+
+        for (let i = 0; i < daily.time.length; i++) {
+            const dayDiv = document.createElement('div');
+            dayDiv.classList.add('day-forecast');
+            dayDiv.addEventListener('click', () => displayHourlyForecast(i, data));
+
+            const date = new Date(daily.time[i] + 'T00:00');
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+
+            const dayNameElement = document.createElement('h2');
+            dayNameElement.textContent = dayName;
+
+            const weatherIcon = document.createElement('img');
+            weatherIcon.src = getWeatherIcon(daily.weather_code[i]);
+            weatherIcon.alt = 'Weather icon';
+
+            const tempElement = document.createElement('p');
+            tempElement.classList.add('temp');
+            tempElement.innerHTML = `<span class="max">${Math.round(daily.temperature_2m_max[i])}°F</span> / ${Math.round(daily.temperature_2m_min[i])}°F`;
+
+            const sunrise = new Date(daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const sunset = new Date(daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const sunriseSunsetElement = document.createElement('div');
+            sunriseSunsetElement.classList.add('sunrise-sunset');
+            sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${sunrise}</div><div><i class="wi wi-sunset"></i> ${sunset}</div>`;
+
+            const goodBoatingDay = isGoodBoatingDay(hourly, i);
+            const boatingDayElement = document.createElement('div');
+            boatingDayElement.classList.add('boating-day');
+            boatingDayElement.innerHTML = `
+                <div>MORN: <span class="${goodBoatingDay.morning.isGood ? 'yes' : 'no'}">${goodBoatingDay.morning.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.morning.reason)}"></i></div>
+                <div>AFT: <span class="${goodBoatingDay.afternoon.isGood ? 'yes' : 'no'}">${goodBoatingDay.afternoon.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.afternoon.reason)}"></i></div>
+            `;
+
+            dayDiv.appendChild(dayNameElement);
+            dayDiv.appendChild(weatherIcon);
+            dayDiv.appendChild(tempElement);
+            dayDiv.appendChild(sunriseSunsetElement);
+            dayDiv.appendChild(boatingDayElement);
+
+            const weatherDescriptionElement = document.createElement('p');
+            weatherDescriptionElement.classList.add('weather-description');
+            weatherDescriptionElement.textContent = getWeatherDescription(daily.weather_code[i]);
+            dayDiv.appendChild(weatherDescriptionElement);
+
+            forecastContainer.appendChild(dayDiv);
+        }
+
+        displayHourlyForecast(0, data);
+        hideLoader();
+    }
 }
 
 function displayHourlyForecast(dayIndex, data) {
-    // Highlight the selected day
     const allDays = document.querySelectorAll('.day-forecast');
     allDays.forEach(day => day.classList.remove('selected'));
-    allDays[dayIndex].classList.add('selected');
+    if (allDays[dayIndex]) {
+        allDays[dayIndex].classList.add('selected');
+    }
 
     const hourlyContainer = document.getElementById('hourly-forecast-container');
     const hourlyDetails = document.getElementById('hourly-forecast-details');
     const hourlyDay = document.getElementById('hourly-forecast-day');
 
     hourlyDetails.innerHTML = '';
-
-    // Remove existing weather description if it exists
     const existingDescription = hourlyContainer.querySelector('.weather-description');
     if (existingDescription) {
         existingDescription.remove();
     }
 
-    const date = new Date(data.daily.time[dayIndex] + 'T00:00');
-    hourlyDay.textContent = `Hourly Forecast for ${date.toLocaleDateString('en-US', { weekday: 'long' })}`;
+    if (lastWeatherData.marine) { // NWS Data
+        const gridData = data.gridData.properties;
+        const temperatureData = gridData.temperature.values;
+        const windData = gridData.windSpeed.values;
+        const precipData = gridData.probabilityOfPrecipitation.values;
+        const waveDataRaw = gridData.waveHeight.values;
 
-    const startIndex = dayIndex * 24;
-    const endIndex = startIndex + 24;
+        // Group by day
+        const days = {};
+        temperatureData.forEach(item => {
+            const date = new Date(item.validTime.split('/')[0]).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            if (!days[date]) {
+                days[date] = {
+                    time: [],
+                    temperature: [],
+                    wind: [],
+                    precipitation: [],
+                    wave: [] // Add wave height array
+                };
+            }
+            days[date].time.push(new Date(item.validTime.split('/')[0]));
+            days[date].temperature.push(item.value);
+        });
+        windData.forEach(item => {
+            const date = new Date(item.validTime.split('/')[0]).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            if (days[date]) {
+                days[date].wind.push(item.value);
+            }
+        });
+        precipData.forEach(item => {
+            const date = new Date(item.validTime.split('/')[0]).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            if (days[date]) {
+                days[date].precipitation.push(item.value);
+            }
+        });
+         waveDataRaw.forEach(item => {
+            const startDate = new Date(item.validTime.split('/')[0]);
+            const durationMatch = item.validTime.match(/P(\d+)DT(\d+)H/);
+            if (!durationMatch) return; // Skip if format is not as expected
 
-    for (let i = startIndex; i < endIndex && i < data.hourly.time.length; i++) {
-        const hourlyItem = document.createElement('div');
-        hourlyItem.classList.add('hourly-item');
-        const hour = new Date(data.hourly.time[i]).getHours();
-        hourlyItem.id = `hourly-item-${hour}`;
+            const daysDuration = parseInt(durationMatch[1], 10);
+            const hoursDuration = parseInt(durationMatch[2], 10);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + daysDuration);
+            endDate.setHours(startDate.getHours() + hoursDuration);
 
-        const time = new Date(data.hourly.time[i]).toLocaleTimeString([], { hour: 'numeric', hour12: true });
-        const windSpeed = data.hourly.wind_speed_10m[i];
-        const precipitation = data.hourly.precipitation_probability[i];
+            for (let d = new Date(startDate); d < endDate; d.setHours(d.getHours() + 1)) {
+                 const dateKey = d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                 if (days[dateKey]) {
+                    // Find the correct index to insert the wave height
+                    const hour = d.getHours();
+                    const targetIndex = days[dateKey].time.findIndex(t => t.getHours() === hour);
+                    if (targetIndex !== -1) {
+                         days[dateKey].wave[targetIndex] = item.value;
+                    }
+                 }
+            }
+        });
 
-        let tideHtml = '';
-        if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
-            const tide = data.marine.hourly.sea_level_height_msl[i];
-            if (tide !== null && !isNaN(tide)) {
-                tideHtml = `<div><i class="wi wi-barometer"></i> ${tide.toFixed(2)}ft</div>`;
+
+        const dayKeys = Object.keys(days);
+        const selectedDayKey = dayKeys[dayIndex];
+        if (!selectedDayKey) return;
+
+        const dayData = days[selectedDayKey];
+        const date = new Date(dayData.time[0]);
+        hourlyDay.textContent = `Hourly Forecast for ${date.toLocaleDateString('en-US', { weekday: 'long' })}`;
+
+        for (let i = 0; i < dayData.time.length; i++) {
+            const hourlyItem = document.createElement('div');
+            hourlyItem.classList.add('hourly-item');
+            const waveHeight = dayData.wave[i];
+            const waveHtml = waveHeight !== undefined ? `<div><i class="wi wi-ocean"></i> ${(waveHeight * 3.28084).toFixed(1)}ft</div>` : '';
+
+            let tideHtml = '';
+            if (data.tideData && data.tideData.length > 0) {
+                const currentTime = dayData.time[i];
+                let closestTide = null;
+                let minDiff = Infinity;
+                data.tideData.forEach(tidePoint => {
+                    const tideTime = new Date(tidePoint.t);
+                    const diff = Math.abs(currentTime - tideTime);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestTide = parseFloat(tidePoint.v);
+                    }
+                });
+                if (closestTide !== null) {
+                    tideHtml = `<div><i class="wi wi-barometer"></i> ${closestTide.toFixed(2)}ft</div>`;
+                }
+            }
+
+
+            hourlyItem.innerHTML = `
+                <div class="time">${dayData.time[i].toLocaleTimeString([], { hour: 'numeric', hour12: true })}</div>
+                <div><i class="wi wi-thermometer"></i> ${Math.round(dayData.temperature[i] * 9/5 + 32)}°F</div>
+                <div><i class="wi wi-strong-wind"></i> ${Math.round(dayData.wind[i] * 0.621371)} mph</div>
+                <div><i class="wi wi-raindrop"></i> ${dayData.precipitation[i]}%</div>
+                ${waveHtml}
+                ${tideHtml}
+            `;
+            hourlyDetails.appendChild(hourlyItem);
+        }
+
+        hourlyContainer.style.display = 'block';
+        document.getElementById('charts-container').style.display = 'block';
+        document.querySelector('.tide-disclaimer').style.display = 'none';
+
+        displayHourlyCharts(
+            dayData.time,
+            dayData.wind.map(w => Math.round(w * 0.621371)),
+            dayData.precipitation,
+            dayData.temperature.map(t => Math.round(t * 9/5 + 32)),
+            dayData.wave.map(w => w !== undefined ? (w * 3.28084).toFixed(1) : null),
+            data.tideData,
+            data.sunriseSunset.sunrise,
+            data.sunriseSunset.sunset
+        );
+
+    } else { // Open-Meteo data
+        const date = new Date(data.daily.time[dayIndex] + 'T00:00');
+        hourlyDay.textContent = `Hourly Forecast for ${date.toLocaleDateString('en-US', { weekday: 'long' })}`;
+
+        const startIndex = dayIndex * 24;
+        const endIndex = startIndex + 24;
+
+        for (let i = startIndex; i < endIndex && i < data.hourly.time.length; i++) {
+            const hourlyItem = document.createElement('div');
+            hourlyItem.classList.add('hourly-item');
+            const hour = new Date(data.hourly.time[i]).getHours();
+            hourlyItem.id = `hourly-item-${hour}`;
+
+            const time = new Date(data.hourly.time[i]).toLocaleTimeString([], { hour: 'numeric', hour12: true });
+            const windSpeed = data.hourly.wind_speed_10m[i];
+            const precipitation = data.hourly.precipitation_probability[i];
+
+            let tideHtml = '';
+            if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
+                const tide = data.marine.hourly.sea_level_height_msl[i];
+                if (tide !== null && !isNaN(tide)) {
+                    tideHtml = `<div><i class="wi wi-barometer"></i> ${tide.toFixed(2)}ft</div>`;
+                }
+            }
+
+            hourlyItem.innerHTML = `
+                <div class="time">${time}</div>
+                <div><i class="wi wi-strong-wind"></i> ${Math.round(windSpeed)} mph</div>
+                <div><i class="wi wi-raindrop"></i> ${precipitation}%</div>
+                ${tideHtml}
+            `;
+            hourlyDetails.appendChild(hourlyItem);
+        }
+
+        hourlyContainer.style.display = 'block';
+        document.querySelector('.tide-disclaimer').style.display = (data.marine ? 'block' : 'none');
+
+        if (dayIndex === 0) {
+            const currentHour = new Date().getHours();
+            const currentHourElement = document.getElementById(`hourly-item-${currentHour}`);
+            if (currentHourElement) {
+                setTimeout(() => {
+                    currentHourElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }, 100);
             }
         }
 
-        hourlyItem.innerHTML = `
-            <div class="time">${time}</div>
-            <div><i class="wi wi-strong-wind"></i> ${Math.round(windSpeed)} mph</div>
-            <div><i class="wi wi-raindrop"></i> ${precipitation}%</div>
-            ${tideHtml}
-        `;
-        hourlyDetails.appendChild(hourlyItem);
-    }
+        const chartsContainer = document.getElementById('charts-container');
+        const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
+        const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
+        const hourlyPrecipitationData = data.hourly.precipitation_probability.slice(startIndex, endIndex);
+        const hourlyTemperatureData = data.hourly.temperature_2m.slice(startIndex, endIndex);
+        const sunrise = data.daily.sunrise[dayIndex];
+        const sunset = data.daily.sunset[dayIndex];
 
-    hourlyContainer.style.display = 'block';
-    document.querySelector('.tide-disclaimer').style.display = (data.marine ? 'block' : 'none');
+        let hourlyTideData = null;
+        let hasTideData = false;
 
-    if (dayIndex === 0) {
-        const currentHour = new Date().getHours();
-        const currentHourElement = document.getElementById(`hourly-item-${currentHour}`);
-        if (currentHourElement) {
-            setTimeout(() => {
-                currentHourElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-            }, 100);
+        if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
+            hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
+            hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
         }
+
+        const tideChartElement = document.getElementById('tide-chart');
+        if (tideChartElement) {
+            tideChartElement.parentElement.style.display = hasTideData ? 'block' : 'none';
+        }
+        document.querySelector('.tide-disclaimer').style.display = hasTideData ? 'block' : 'none';
+
+        chartsContainer.style.display = 'block';
+        displayHourlyCharts(hourlyTimeData, hourlyWindData, hourlyPrecipitationData, hourlyTemperatureData, hourlyTideData, sunrise, sunset);
     }
-
-    const chartsContainer = document.getElementById('charts-container');
-    const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
-    const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
-    const hourlyPrecipitationData = data.hourly.precipitation_probability.slice(startIndex, endIndex);
-    const hourlyTemperatureData = data.hourly.temperature_2m.slice(startIndex, endIndex);
-    const sunrise = data.daily.sunrise[dayIndex];
-    const sunset = data.daily.sunset[dayIndex];
-
-    let hourlyTideData = null;
-    let hasTideData = false;
-
-    if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
-        hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
-        hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
-    }
-
-    const tideChartElement = document.getElementById('tide-chart');
-    if (tideChartElement) {
-        tideChartElement.parentElement.style.display = hasTideData ? 'block' : 'none';
-    }
-    document.querySelector('.tide-disclaimer').style.display = hasTideData ? 'block' : 'none';
-
-    chartsContainer.style.display = 'block';
-    displayHourlyCharts(hourlyTimeData, hourlyWindData, hourlyPrecipitationData, hourlyTemperatureData, hourlyTideData, sunrise, sunset);
 }
 
-function displayHourlyCharts(timeData, windData, precipitationData, temperatureData, tideData, sunrise, sunset) {
+function displayHourlyCharts(timeData, windData, precipitationData, temperatureData, waveData, tideData, sunrise, sunset) {
     if (windChart) windChart.destroy();
     if (precipitationChart) precipitationChart.destroy();
     if (temperatureChart) temperatureChart.destroy();
+    if (waveChart) waveChart.destroy();
     if (tideChart) tideChart.destroy();
 
     const labels = timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true }));
@@ -461,18 +739,159 @@ function displayHourlyCharts(timeData, windData, precipitationData, temperatureD
     const temperatureCtx = document.getElementById('temperature-chart').getContext('2d');
     temperatureChart = new Chart(temperatureCtx, { type: 'line', data: { labels, datasets: [{ label: 'Temperature', data: temperatureData, borderColor: 'rgba(255, 206, 86, 0.8)', backgroundColor: 'rgba(255, 206, 86, 0.2)', fill: true, tension: 0.4 }] }, options: tempOptions });
 
-    // Tide Chart
-    if (tideData && tideData.some(t => t !== null && !isNaN(t))) {
-        const tideOptions = getCommonOptions('Tide Height (ft)');
-        tideOptions.onHover = baseOnHover;
-        tideOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(tideData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(tideData, sunsetIcon, sunsetIndex) }};
-        const tideCtx = document.getElementById('tide-chart').getContext('2d');
-        tideChart = new Chart(tideCtx, { type: 'line', data: { labels, datasets: [{ label: 'Tide Height', data: tideData, borderColor: 'rgba(75, 192, 192, 0.8)', backgroundColor: 'rgba(75, 192, 192, 0.2)', fill: true, tension: 0.4 }] }, options: tideOptions });
+    // Wave Chart
+    const waveChartElement = document.getElementById('wave-chart');
+    if (waveData && waveData.some(w => w !== null && !isNaN(w))) {
+        waveChartElement.parentElement.style.display = 'block';
+        const waveOptions = getCommonOptions('Wave Height (ft)');
+        waveOptions.onHover = baseOnHover;
+        waveOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(waveData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(waveData, sunsetIcon, sunsetIndex) }};
+        const waveCtx = waveChartElement.getContext('2d');
+        waveChart = new Chart(waveCtx, { type: 'line', data: { labels, datasets: [{ label: 'Wave Height', data: waveData, borderColor: 'rgba(75, 192, 192, 0.8)', backgroundColor: 'rgba(75, 192, 192, 0.2)', fill: true, tension: 0.4 }] }, options: waveOptions });
     } else {
+        if (waveChartElement) {
+            waveChartElement.parentElement.style.display = 'none';
+        }
+        waveChart = null;
+    }
+
+    // Tide Chart
+    const tideChartElement = document.getElementById('tide-chart');
+    const tideDisclaimer = document.querySelector('.tide-disclaimer');
+    if (tideData && tideData.length > 0) {
+        tideChartElement.parentElement.style.display = 'block';
+        tideDisclaimer.style.display = 'block';
+
+        // Align tide data with the hourly forecast labels
+        const alignedTideData = labels.map(label => {
+            const labelDate = new Date(`${timeData[0].toDateString()} ${label}`);
+
+            let closestTide = null;
+            let minDiff = Infinity;
+
+            tideData.forEach(tidePoint => {
+                const tideDate = new Date(tidePoint.t);
+                const diff = Math.abs(labelDate - tideDate);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestTide = parseFloat(tidePoint.v);
+                }
+            });
+            return closestTide;
+        });
+
+        const tideOptions = getCommonOptions('Tide (ft MLLW)');
+        tideOptions.onHover = baseOnHover;
+        tideOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(alignedTideData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(alignedTideData, sunsetIcon, sunsetIndex) }};
+        const tideCtx = tideChartElement.getContext('2d');
+        tideChart = new Chart(tideCtx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Tide',
+                    data: alignedTideData,
+                    borderColor: 'rgba(153, 102, 255, 0.8)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: tideOptions
+        });
+    } else {
+        if (tideChartElement) {
+            tideChartElement.parentElement.style.display = 'none';
+        }
+        if (tideDisclaimer) {
+            tideDisclaimer.style.display = 'none';
+        }
         tideChart = null;
     }
 }
 
+
+function mapNwsIconToAppIcon(iconUrl) {
+    const mapping = {
+        "skc": "sun",
+        "few": "cloudy",
+        "sct": "cloudy",
+        "bkn": "cloudy",
+        "ovc": "cloudy",
+        "wind_skc": "sun",
+        "wind_few": "cloudy",
+        "wind_sct": "cloudy",
+        "wind_bkn": "cloudy",
+        "wind_ovc": "cloudy",
+        "snow": "snow",
+        "rain_snow": "rain",
+        "rain_sleet": "rain",
+        "snow_sleet": "snow",
+        "fzra": "rain",
+        "rain_fzra": "rain",
+        "snow_fzra": "snow",
+        "sleet": "rain",
+        "rain": "rain",
+        "rain_showers": "showers",
+        "rain_showers_hi": "showers",
+        "tsra": "thunderstorm",
+        "tsra_sct": "thunderstorm",
+        "tsra_hi": "thunderstorm",
+        "tornado": "thunderstorm",
+        "hurricane": "thunderstorm",
+        "tropical_storm": "thunderstorm",
+        "dust": "fog",
+        "smoke": "fog",
+        "haze": "fog",
+        "hot": "sun",
+        "cold": "sun",
+        "blizzard": "snow",
+        "fog": "fog"
+    };
+
+    const key = Object.keys(mapping).find(key => iconUrl.includes(key));
+    return `icons/${mapping[key] || 'cloudy'}.svg`;
+}
+
+function isGoodBoatingDayNWS(periods) {
+    const maxWind = userThresholds.maxWind * 1.151; // Convert knots to mph
+    const maxPrecip = userThresholds.maxPrecip;
+    const minTemp = userThresholds.minTemp;
+    const maxTemp = userThresholds.maxTemp;
+
+    const results = {
+        morning: { isGood: true, reason: 'clear' },
+        afternoon: { isGood: true, reason: 'clear' }
+    };
+
+    periods.forEach(period => {
+        const hour = new Date(period.startTime).getHours();
+        const windSpeedMatch = period.windSpeed.match(/(\d+)/);
+        const wind = windSpeedMatch ? parseInt(windSpeedMatch[0], 10) : 0;
+        const precip = period.probabilityOfPrecipitation.value || 0;
+        const temp = period.temperature;
+
+        let reason = 'clear';
+        if (wind > maxWind) reason = 'wind';
+        else if (precip > maxPrecip) reason = 'precip';
+        else if (temp < minTemp || temp > maxTemp) reason = 'temp';
+
+        const isBadWeather = reason !== 'clear';
+
+        if (hour >= 8 && hour < 15) { // Morning
+            if (isBadWeather && results.morning.isGood) {
+                results.morning = { isGood: false, reason: reason };
+            }
+        }
+        if (hour >= 15 && hour < 20) { // Afternoon
+            if (isBadWeather && results.afternoon.isGood) {
+                results.afternoon = { isGood: false, reason: reason };
+            }
+        }
+    });
+
+    return results;
+}
 
 function getWeatherIcon(code) {
     if (code === 0) return 'icons/sun.svg';

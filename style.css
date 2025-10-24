@@ -484,3 +484,14 @@ h1 {
         padding: 15px;
     }
 }
+
+.disclaimer {
+    margin-top: 30px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    text-align: center;
+    font-size: 0.9em;
+    width: 95%;
+    max-width: 1400px;
+}
