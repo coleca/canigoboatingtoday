@@ -49,12 +49,13 @@
                 <canvas id="temperature-chart"></canvas>
             </div>
             <div class="chart-container">
+                <canvas id="wave-chart"></canvas>
+            </div>
+            <div class="chart-container">
                 <canvas id="tide-chart"></canvas>
             </div>
         </div>
-        <p class="tide-disclaimer">
-            Tide data is an estimate and should not be used for navigation.
-        </p>
+        <p class="tide-disclaimer" style="display: none;">Tide data from nearest station. Verify with official charts.</p>
     </div>
     <div id="radar-map-container"></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -83,6 +84,9 @@
                 <button type="submit">Save</button>
             </form>
         </div>
+    </div>
+    <div class="disclaimer">
+        <p>This application is optimized for marine forecasting. Boaters should use their own judgment and consult multiple sources before making decisions. The creators of this application are not liable for any damages or losses resulting from its use.</p>
     </div>
 </body>
 </html>
