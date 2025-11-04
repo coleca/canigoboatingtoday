@@ -183,6 +183,9 @@ async function getTideData(lat, lon) {
         const stationsResponse = await fetch(stationsUrl);
         if (!stationsResponse.ok) throw new Error(`Failed to fetch stations: ${stationsResponse.statusText}`);
         const stationsJson = await stationsResponse.json();
+        if (!stationsJson.contents || typeof stationsJson.contents !== 'string') {
+            throw new Error('Invalid or missing station data from proxy.');
+        }
         const stationsData = JSON.parse(stationsJson.contents);
 
         let nearestStation = null;
@@ -206,6 +209,9 @@ async function getTideData(lat, lon) {
         const tideResponse = await fetch(tideDataUrl);
         if (!tideResponse.ok) throw new Error(`Failed to fetch tide data: ${tideResponse.statusText}`);
         const tideJson = await tideResponse.json();
+        if (!tideJson.contents || typeof tideJson.contents !== 'string') {
+            throw new Error('Invalid or missing tide data from proxy.');
+        }
         const tideData = JSON.parse(tideJson.contents);
 
         return tideData.predictions || null;
