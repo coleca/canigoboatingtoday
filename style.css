@@ -152,6 +152,8 @@ h1 {
     width: 95%;
     max-width: 1400px;
     margin-top: 20px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .day-forecast {
@@ -226,6 +228,8 @@ h1 {
     -webkit-backdrop-filter: blur(4px);
     width: 95%;
     max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #hourly-forecast-day {

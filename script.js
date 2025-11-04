@@ -232,7 +232,7 @@ async function getTideData(lat, lon) {
             return `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
         };
 
-        const tideDataUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${formatDate(today)}&end_date=${formatDate(tomorrow)}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&format=json`;
+        const tideDataUrl = `https://corsproxy.io/?https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${formatDate(today)}&end_date=${formatDate(tomorrow)}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&format=json`;
 
         const tideResponse = await fetch(tideDataUrl);
         const tideData = await tideResponse.json();
@@ -458,22 +458,25 @@ function displayHourlyForecast(dayIndex, data) {
         });
          waveDataRaw.forEach(item => {
             const startDate = new Date(item.validTime.split('/')[0]);
-            const durationMatch = item.validTime.match(/P(\d+)DT(\d+)H/);
-            if (!durationMatch) return; // Skip if format is not as expected
+            // More robust regex for ISO 8601 duration (e.g., PT2H, P1DT6H)
+            const durationMatch = item.validTime.match(/P(?:(\d+)D)?T(?:(\d+)H)?/);
+            if (!durationMatch || item.value === null) return;
 
-            const daysDuration = parseInt(durationMatch[1], 10);
-            const hoursDuration = parseInt(durationMatch[2], 10);
+            const daysDuration = parseInt(durationMatch[1], 10) || 0;
+            const hoursDuration = parseInt(durationMatch[2], 10) || 0;
+            const totalHours = (daysDuration * 24) + hoursDuration;
+
+            if (totalHours === 0) return;
+
             const endDate = new Date(startDate);
-            endDate.setDate(startDate.getDate() + daysDuration);
-            endDate.setHours(startDate.getHours() + hoursDuration);
+            endDate.setHours(startDate.getHours() + totalHours);
 
             for (let d = new Date(startDate); d < endDate; d.setHours(d.getHours() + 1)) {
                  const dateKey = d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
                  if (days[dateKey]) {
-                    // Find the correct index to insert the wave height
                     const hour = d.getHours();
                     const targetIndex = days[dateKey].time.findIndex(t => t.getHours() === hour);
-                    if (targetIndex !== -1) {
+                    if (targetIndex !== -1 && days[dateKey].wave[targetIndex] === undefined) {
                          days[dateKey].wave[targetIndex] = item.value;
                     }
                  }
@@ -514,11 +517,13 @@ function displayHourlyForecast(dayIndex, data) {
             }
 
 
+            const precipValue = dayData.precipitation[i] !== null && dayData.precipitation[i] !== undefined ? dayData.precipitation[i] : 0;
+
             hourlyItem.innerHTML = `
                 <div class="time">${dayData.time[i].toLocaleTimeString([], { hour: 'numeric', hour12: true })}</div>
                 <div><i class="wi wi-thermometer"></i> ${Math.round(dayData.temperature[i] * 9/5 + 32)}°F</div>
                 <div><i class="wi wi-strong-wind"></i> ${Math.round(dayData.wind[i] * 0.621371)} mph</div>
-                <div><i class="wi wi-raindrop"></i> ${dayData.precipitation[i]}%</div>
+                <div><i class="wi wi-raindrop"></i> ${precipValue}%</div>
                 ${waveHtml}
                 ${tideHtml}
             `;
@@ -630,8 +635,19 @@ function displayHourlyCharts(timeData, windData, precipitationData, temperatureD
     sunsetIcon.src = 'icons/sunset.svg';
 
     const timeDataMs = timeData.map(t => new Date(t).getTime());
-    const sunriseMs = new Date(sunrise).getTime();
-    const sunsetMs = new Date(sunset).getTime();
+
+    let sunriseToParse = sunrise;
+    let sunsetToParse = sunset;
+
+    // If sunrise/sunset is just a time string (e.g., from sunrisesunset.io), combine it with the forecast date.
+    if ((sunrise.includes('AM') || sunrise.includes('PM')) && timeData.length > 0) {
+        const forecastDate = new Date(timeData[0]).toDateString();
+        sunriseToParse = `${forecastDate} ${sunrise}`;
+        sunsetToParse = `${forecastDate} ${sunset}`;
+    }
+
+    const sunriseMs = new Date(sunriseToParse).getTime();
+    const sunsetMs = new Date(sunsetToParse).getTime();
 
     const findClosestIndex = (times, targetTime) => {
         return times.reduce((prev, curr, index) => {
@@ -722,6 +738,7 @@ function displayHourlyCharts(timeData, windData, precipitationData, temperatureD
 
     // Wind Chart
     const windOptions = getCommonOptions('Wind Speed (mph)');
+    windOptions.scales.y.min = 0;
     windOptions.onHover = baseOnHover;
     windOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(windData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(windData, sunsetIcon, sunsetIndex) }};
     const windCtx = document.getElementById('wind-chart').getContext('2d');
