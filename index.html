@@ -59,7 +59,7 @@
     </div>
     <div id="radar-map-container"></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -81,12 +81,16 @@
                     <label for="max-temp">Max Temperature (°F)</label>
                     <input type="number" id="max-temp" name="max-temp">
                 </div>
+                <div class="form-group">
+                    <label for="max-wave">Max Wave Height (ft)</label>
+                    <input type="number" id="max-wave" name="max-wave" min="0" step="0.5">
+                </div>
                 <button type="submit">Save</button>
             </form>
         </div>
     </div>
     <div class="disclaimer">
-        <p>This application is optimized for marine forecasting. Boaters should use their own judgment and consult multiple sources before making decisions. The creators of this application are not liable for any damages or losses resulting from its use.</p>
+        <p>This application has been optimized for marine forecasting, but boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.</p>
     </div>
 </body>
 </html>
