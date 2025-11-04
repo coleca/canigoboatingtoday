@@ -179,14 +179,17 @@ function getWeatherAlerts(lat, lon) {
 
 async function getTideData(lat, lon) {
     try {
-        const stationsUrl = 'https://api.allorigins.win/raw?url=https://api.tidesandcurrents.noaa.gov/mdapi/v1/webapi/stations.json?type=tidepredictions&units=english';
+        // Using a CORS proxy to bypass browser restrictions on direct API calls.
+        const stationsApiUrl = 'https://api.tidesandcurrents.noaa.gov/api/prod/stations.json?type=tidepredictions&units=english';
+        const stationsUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(stationsApiUrl)}`;
+
         const stationsResponse = await fetch(stationsUrl);
         if (!stationsResponse.ok) throw new Error(`Failed to fetch stations: ${stationsResponse.statusText}`);
-        const stationsJson = await stationsResponse.json();
-        if (!stationsJson.contents || typeof stationsJson.contents !== 'string') {
-            throw new Error('Invalid or missing station data from proxy.');
-        }
-        const stationsData = JSON.parse(stationsJson.contents);
+
+        // Fetch as text first for robust parsing
+        const stationsText = await stationsResponse.text();
+        if (!stationsText) throw new Error('Empty station data response from proxy.');
+        const stationsData = JSON.parse(stationsText);
 
         let nearestStation = null;
         let minDistance = Infinity;
@@ -205,14 +208,15 @@ async function getTideData(lat, lon) {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const formatDate = (date) => `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
 
-        const tideDataUrl = `https://api.allorigins.win/raw?url=https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${formatDate(today)}&end_date=${formatDate(tomorrow)}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&format=json`;
+        const tideApiUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${formatDate(today)}&end_date=${formatDate(tomorrow)}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&format=json`;
+        const tideDataUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(tideApiUrl)}`;
+
         const tideResponse = await fetch(tideDataUrl);
         if (!tideResponse.ok) throw new Error(`Failed to fetch tide data: ${tideResponse.statusText}`);
-        const tideJson = await tideResponse.json();
-        if (!tideJson.contents || typeof tideJson.contents !== 'string') {
-            throw new Error('Invalid or missing tide data from proxy.');
-        }
-        const tideData = JSON.parse(tideJson.contents);
+
+        const tideText = await tideResponse.text();
+        if (!tideText) throw new Error('Empty tide data response from proxy.');
+        const tideData = JSON.parse(tideText);
 
         return tideData.predictions || null;
     } catch (error) {
