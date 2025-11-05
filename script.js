@@ -1,6 +1,8 @@
-let windChart, precipitationChart, temperatureChart, tideChart, radarMap;
+let windChart, precipitationChart, temperatureChart, waveChart, tideChart, radarMap;
+// Store the raw data from the last successful API call
 let lastWeatherData = null;
 
+// --- LOADER ---
 function showLoader() {
     document.getElementById('loader-overlay').classList.add('visible');
 }
@@ -9,7 +11,9 @@ function hideLoader() {
     document.getElementById('loader-overlay').classList.remove('visible');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// --- INITIALIZATION ---
+window.addEventListener('DOMContentLoaded', () => {
+    // Event listener for the location search form
     const locationForm = document.getElementById('location-form');
     locationForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -18,34 +22,27 @@ document.addEventListener('DOMContentLoaded', () => {
         geocodeAndGetWeather(locationInput.value);
     });
 
+    // Initial weather fetch based on geolocation or default
     showLoader();
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(position => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             reverseGeocode(lat, lon);
-        }, error => {
-            console.error("Error getting location: ", error);
-            geocodeAndGetWeather("New York");
+        }, () => {
+            geocodeAndGetWeather("New York"); // Default on geolocation error
         });
     } else {
-        console.error("Geolocation is not supported by this browser.");
-        geocodeAndGetWeather("New York");
+        geocodeAndGetWeather("New York"); // Default if geolocation is not supported
     }
 
-    // Settings Modal Logic
+    // --- Settings Modal Logic ---
     const settingsModal = document.getElementById('settings-modal');
     const settingsIcon = document.getElementById('settings-icon');
     const closeButton = document.querySelector('.close-button');
 
-    settingsIcon.addEventListener('click', () => {
-        settingsModal.style.display = 'block';
-    });
-
-    closeButton.addEventListener('click', () => {
-        settingsModal.style.display = 'none';
-    });
-
+    settingsIcon.addEventListener('click', () => settingsModal.style.display = 'block');
+    closeButton.addEventListener('click', () => settingsModal.style.display = 'none');
     window.addEventListener('click', (event) => {
         if (event.target === settingsModal) {
             settingsModal.style.display = 'none';
@@ -55,36 +52,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const thresholdsForm = document.getElementById('thresholds-form');
     thresholdsForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        // Update thresholds from form
         userThresholds.maxWind = parseInt(document.getElementById('max-wind').value, 10);
         userThresholds.maxPrecip = parseInt(document.getElementById('max-precip').value, 10);
         userThresholds.minTemp = parseInt(document.getElementById('min-temp').value, 10);
         userThresholds.maxTemp = parseInt(document.getElementById('max-temp').value, 10);
+        userThresholds.maxWave = parseFloat(document.getElementById('max-wave').value);
 
+        // Save to local storage
         localStorage.setItem('userThresholds', JSON.stringify(userThresholds));
         settingsModal.style.display = 'none';
 
+        // Re-render the weather display with the new thresholds
         if (lastWeatherData) {
-            displayWeather(lastWeatherData.data, lastWeatherData.locationName);
+            const transformedData = lastWeatherData.isMarine
+                ? transformNwsData(lastWeatherData.data)
+                : transformOpenMeteoData(lastWeatherData.data);
+            displayWeather(transformedData, lastWeatherData.locationName, lastWeatherData.lat, lastWeatherData.lon);
         }
     });
 
-    function loadThresholds() {
-        const savedThresholds = localStorage.getItem('userThresholds');
-        if (savedThresholds) {
-            userThresholds = JSON.parse(savedThresholds);
-        }
-        document.getElementById('max-wind').value = userThresholds.maxWind;
-        document.getElementById('max-precip').value = userThresholds.maxPrecip;
-        document.getElementById('min-temp').value = userThresholds.minTemp;
-        document.getElementById('max-temp').value = userThresholds.maxTemp;
-    }
-
+    // Load saved thresholds on startup
     loadThresholds();
 });
 
-function geocodeAndGetWeather(locationName) {
-    const geocodeApiUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${locationName}&count=1&language=en&format=json`;
 
+// --- CORE DATA FETCHING ---
+
+function geocodeAndGetWeather(locationName) {
+    const geocodeApiUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationName)}&count=1&language=en&format=json`;
     fetch(geocodeApiUrl)
         .then(response => response.json())
         .then(data => {
@@ -94,6 +90,7 @@ function geocodeAndGetWeather(locationName) {
                 getWeather(location.latitude, location.longitude, location.name);
             } else {
                 alert("Could not find location. Please try again.");
+                hideLoader();
             }
         })
         .catch(error => {
@@ -103,34 +100,63 @@ function geocodeAndGetWeather(locationName) {
         });
 }
 
-function getWeather(lat, lon, locationName) {
-    const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
-    const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
+async function getWeather(lat, lon, locationName) {
+    const pointsApiUrl = `https://api.weather.gov/points/${lat},${lon}`;
+    try {
+        const pointsResponse = await fetch(pointsApiUrl, { headers: { 'User-Agent': '(canigoboatingtoday.com, admin@canigoboatingtoday.com)' } });
+        const pointsData = await pointsResponse.json();
 
-    Promise.all([
-        fetch(forecastApiUrl).then(response => response.json()),
-        fetch(marineApiUrl).then(response => response.json())
-    ])
-    .then(([forecastData, marineData]) => {
-        const combinedData = { ...forecastData };
-        if (marineData && !marineData.error) {
-            combinedData.marine = marineData;
-        } else {
-            console.warn("Could not retrieve marine data. This is expected for inland locations.");
-            combinedData.marine = null;
-        }
-        lastWeatherData = { data: combinedData, locationName: locationName };
-        displayWeather(combinedData, locationName);
-    })
-    .catch(error => {
-        console.error('Error fetching weather data:', error);
+        const gridDataUrl = pointsData.properties.forecastGridData;
+        const forecastUrl = pointsData.properties.forecast;
+        const [gridDataResponse, forecastResponse] = await Promise.all([
+            fetch(gridDataUrl, { headers: { 'User-Agent': '(canigoboatingtoday.com, admin@canigoboatingtoday.com)' } }),
+            fetch(forecastUrl, { headers: { 'User-Agent': '(canigoboatingtoday.com, admin@canigoboatingtoday.com)' } })
+        ]);
+        const gridData = await gridDataResponse.json();
+        const forecastData = await forecastResponse.json();
+
+        const sunriseSunsetUrl = `https://api.sunrisesunset.io/json?lat=${lat}&lng=${lon}`;
+        const [sunriseSunsetResponse, tideData] = await Promise.all([
+            fetch(sunriseSunsetUrl),
+            getTideData(lat, lon)
+        ]);
+        const sunriseSunsetData = await sunriseSunsetResponse.json();
+
+        const combinedData = { ...forecastData, gridData, sunriseSunset: sunriseSunsetData.results, tideData };
+        lastWeatherData = { data: combinedData, locationName, isMarine: true, lat, lon };
+        const standardizedData = transformNwsData(combinedData);
+        displayWeather(standardizedData, locationName, lat, lon);
         hideLoader();
-    });
+    } catch (error) {
+        console.error('Error fetching weather data from NWS, falling back to Open-Meteo:', error);
+        const forecastApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,precipitation_probability,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=8`;
+        const marineApiUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&length_unit=imperial`;
+
+        try {
+            const [forecastData, marineData] = await Promise.all([
+                fetch(forecastApiUrl).then(response => response.json()),
+                fetch(marineApiUrl).then(response => response.json())
+            ]);
+
+            const combinedData = { ...forecastData };
+            if (marineData && !marineData.error) {
+                combinedData.marine = marineData;
+            } else {
+                combinedData.marine = null;
+            }
+            lastWeatherData = { data: combinedData, locationName, isMarine: false };
+            const standardizedData = transformOpenMeteoData(combinedData);
+            displayWeather(standardizedData, locationName);
+        } catch (fallbackError) {
+            console.error('Error fetching weather data from fallback API:', fallbackError);
+        } finally {
+            hideLoader();
+        }
+    }
 }
 
 function reverseGeocode(lat, lon) {
     const reverseGeocodeApiUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
-
     fetch(reverseGeocodeApiUrl)
         .then(response => response.json())
         .then(data => {
@@ -146,464 +172,541 @@ function reverseGeocode(lat, lon) {
 
 function getWeatherAlerts(lat, lon) {
     const alertsApiUrl = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
-
-    fetch(alertsApiUrl, {
-        headers: {
-            'User-Agent': '(canigoboatingtoday.com, contact@canigoboatingtoday.com)'
-        }
-    })
+    fetch(alertsApiUrl, { headers: { 'User-Agent': '(canigoboatingtoday.com, admin@canigoboatingtoday.com)' } })
         .then(response => response.json())
-        .then(alertData => {
-            displayWeatherAlerts(alertData);
-        })
+        .then(alertData => displayWeatherAlerts(alertData))
         .catch(error => console.error('Error fetching weather alerts:', error));
 }
 
-function displayWeatherAlerts(alertData) {
-    const alertsContainer = document.getElementById('weather-alerts');
-    alertsContainer.innerHTML = '';
+async function getTideData(lat, lon) {
+    try {
+        // Using a CORS proxy to bypass browser restrictions on direct API calls.
+        const stationsApiUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/v1/webapi/stations.json?type=tidepredictions&units=english';
+        const stationsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(stationsApiUrl)}`;
 
-    if (alertData.features && alertData.features.length > 0) {
-        alertData.features.forEach(alert => {
-            const alertDiv = document.createElement('div');
-            alertDiv.classList.add('weather-alert');
-            alertDiv.classList.add(`weather-alert-${alert.properties.severity.toLowerCase()}`);
-            alertDiv.innerHTML = `
-                <h3>${alert.properties.headline}</h3>
-                <p><strong>Effective:</strong> ${new Date(alert.properties.effective).toLocaleString()}</p>
-                <p>${alert.properties.description}</p>
-            `;
-            alertsContainer.appendChild(alertDiv);
-        });
+        const stationsResponse = await fetch(stationsUrl);
+        if (!stationsResponse.ok) throw new Error(`Failed to fetch stations: ${stationsResponse.statusText}`);
+
+        const stationsJson = await stationsResponse.json();
+        if (!stationsJson.contents) throw new Error('Proxy response for stations is missing "contents" field.');
+
+        let stationsData;
+        try {
+            stationsData = JSON.parse(stationsJson.contents);
+        } catch (e) {
+            console.error("Failed to parse station data JSON from proxy.", stationsJson.contents);
+            throw new Error("Invalid station data from proxy: not valid JSON.");
+        }
+
+        // Haversine formula to calculate the great-circle distance between two points
+        const haversineDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; // Radius of the Earth in kilometers
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Distance in kilometers
+        };
+
+        let nearestStation = null;
+        let minDistance = Infinity;
+
+        if (stationsData && stationsData.stations && stationsData.stations.length > 0) {
+            stationsData.stations.forEach(station => {
+                const distance = haversineDistance(lat, lon, station.lat, station.lng);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestStation = station;
+                }
+            });
+        }
+
+        if (!nearestStation) return null;
+
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const formatDate = (date) => `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+
+        const tideApiUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${formatDate(today)}&end_date=${formatDate(tomorrow)}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&format=json`;
+        const tideDataUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tideApiUrl)}`;
+
+        const tideResponse = await fetch(tideDataUrl);
+        if (!tideResponse.ok) throw new Error(`Failed to fetch tide data: ${tideResponse.statusText}`);
+
+        const tideJson = await tideResponse.json();
+        if (!tideJson.contents) throw new Error('Proxy response for tide data is missing "contents" field.');
+
+        let tideData;
+        try {
+            tideData = JSON.parse(tideJson.contents);
+        } catch (e) {
+            console.error("Failed to parse tide data JSON from proxy.", tideJson.contents);
+            throw new Error("Invalid tide data from proxy: not valid JSON.");
+        }
+
+        if (tideData.error) {
+            console.warn(`Tide API returned an error: ${tideData.error.message}`);
+            return null;
+        }
+
+        return tideData.predictions || null;
+    } catch (error) {
+        console.error('Error fetching or parsing tide data:', error);
+        return null;
     }
 }
 
-function displayWeather(data, locationName) {
-    const currentLocationElement = document.getElementById('current-location');
-    currentLocationElement.textContent = `Weather for: ${locationName}`;
+// --- DATA TRANSFORMATION LAYER ---
 
+function transformNwsData(data) {
+    const dailyData = [];
+    const hourlyData = [];
+
+    const days = {};
+    data.properties.periods.forEach(period => {
+        const dateKey = new Date(period.startTime).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        if (!days[dateKey]) days[dateKey] = [];
+        days[dateKey].push(period);
+    });
+
+    // Process hourly data first to make it available for daily decisions
+    const gridData = data.gridData.properties;
+    const hourlyDays = {};
+    if (gridData.temperature && gridData.temperature.values) {
+        gridData.temperature.values.forEach((item, index) => {
+            const time = new Date(item.validTime.split('/')[0]);
+            const dateKey = time.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            if (!hourlyDays[dateKey]) hourlyDays[dateKey] = [];
+            hourlyDays[dateKey].push({
+                time,
+                temperature: Math.round(item.value * 9/5 + 32),
+                wind: Math.round(gridData.windSpeed.values[index]?.value * 0.621371 ?? 0),
+                precipitation: gridData.probabilityOfPrecipitation.values[index]?.value ?? 0,
+                wave: null // Initialize wave height
+            });
+        });
+    }
+
+    if (gridData.waveHeight && gridData.waveHeight.values) {
+        gridData.waveHeight.values.forEach(item => {
+            const startDate = new Date(item.validTime.split('/')[0]);
+            const durationMatch = item.validTime.match(/P(?:(\d+)D)?T(?:(\d+)H)?/);
+            if (!durationMatch || item.value === null) return;
+            const daysDuration = parseInt(durationMatch[1], 10) || 0;
+            const hoursDuration = parseInt(durationMatch[2], 10) || 0;
+            const totalHours = (daysDuration * 24) + hoursDuration;
+            if (totalHours === 0) return;
+
+            for (let i = 0; i < totalHours; i++) {
+                const currentHour = new Date(startDate.getTime() + i * 3600 * 1000);
+                const dateKey = currentHour.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                if (hourlyDays[dateKey]) {
+                    const hour = currentHour.getHours();
+                    const targetHour = hourlyDays[dateKey].find(h => h.time.getHours() === hour);
+                    if (targetHour) {
+                        targetHour.wave = (item.value * 3.28084).toFixed(1);
+                    }
+                }
+            }
+        });
+    }
+
+    // Now, build dailyData and hourlyData based on the days available in hourlyDays
+    const sortedDateKeys = Object.keys(hourlyDays).sort((a, b) => new Date(a) - new Date(b));
+
+    sortedDateKeys.slice(0, 8).forEach(dateKey => {
+        const dayHourlyData = hourlyDays[dateKey];
+        if (!dayHourlyData || dayHourlyData.length === 0) return;
+
+        const date = new Date(dayHourlyData[0].time);
+        const dayPeriods = days[dateKey];
+
+        let icon, description, maxTemp, minTemp;
+
+        if (dayPeriods) {
+            const firstPeriod = dayPeriods[0];
+            icon = mapNwsIconToAppIcon(dayPeriods.find(p => p.isDaytime)?.icon || firstPeriod.icon);
+            description = dayPeriods.find(p => p.isDaytime)?.shortForecast || firstPeriod.shortForecast;
+            maxTemp = Math.max(...dayPeriods.map(p => p.temperature));
+            minTemp = Math.min(...dayPeriods.map(p => p.temperature));
+        } else {
+            const temps = dayHourlyData.map(h => h.temperature);
+            maxTemp = Math.max(...temps);
+            minTemp = Math.min(...temps);
+            icon = 'icons/cloudy.svg'; // Default icon
+            description = 'No summary available.';
+        }
+
+        dailyData.push({
+            date,
+            dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+            maxTemp,
+            minTemp,
+            icon,
+            description,
+            sunrise: data.sunriseSunset.sunrise,
+            sunset: data.sunriseSunset.sunset,
+            boatingDecision: isGoodBoatingDayNWS(dayPeriods, dayHourlyData)
+        });
+
+        hourlyData.push(dayHourlyData);
+    });
+
+    return { daily: dailyData, hourly: hourlyData, tideData: data.tideData };
+}
+
+function transformOpenMeteoData(data) {
+    const dailyData = [];
+    const hourlyData = [];
+
+    data.daily.time.forEach((dateStr, i) => {
+        const date = new Date(dateStr + 'T00:00');
+        dailyData.push({
+            date,
+            dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+            maxTemp: Math.round(data.daily.temperature_2m_max[i]),
+            minTemp: Math.round(data.daily.temperature_2m_min[i]),
+            icon: getWeatherIcon(data.daily.weather_code[i]),
+            description: getWeatherDescription(data.daily.weather_code[i]),
+            sunrise: new Date(data.daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sunset: new Date(data.daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            boatingDecision: isGoodBoatingDay(data.hourly, i)
+        });
+
+        const startIndex = i * 24;
+        const endIndex = startIndex + 24;
+        const dayHourly = [];
+        for (let j = startIndex; j < endIndex && j < data.hourly.time.length; j++) {
+            let tide = null;
+            if (data.marine?.hourly?.sea_level_height_msl) {
+                const tideVal = data.marine.hourly.sea_level_height_msl[j];
+                if (tideVal !== null && !isNaN(tideVal)) tide = tideVal.toFixed(2);
+            }
+            dayHourly.push({
+                time: new Date(data.hourly.time[j]),
+                temperature: Math.round(data.hourly.temperature_2m[j]),
+                wind: Math.round(data.hourly.wind_speed_10m[j]),
+                precipitation: data.hourly.precipitation_probability[j],
+                wave: null,
+                tide
+            });
+        }
+        hourlyData.push(dayHourly);
+    });
+
+    let tideChartData = null;
+    if (data.marine?.hourly?.time) {
+        tideChartData = data.marine.hourly.time.map((t, i) => ({ t, v: data.marine.hourly.sea_level_height_msl[i] }));
+    }
+
+    return { daily: dailyData, hourly: hourlyData, tideData: tideChartData };
+}
+
+// --- UI DISPLAY ---
+
+function displayWeather(data, locationName, lat, lon) {
+    document.getElementById('current-location').textContent = `Weather for: ${locationName}`;
     const forecastContainer = document.getElementById('weather-forecast');
     forecastContainer.innerHTML = '';
 
-    displayRadarMap(data.latitude, data.longitude);
+    if (lat && lon) displayRadarMap(lat, lon);
 
-    const daily = data.daily;
-    const hourly = data.hourly;
-
-    for (let i = 0; i < daily.time.length; i++) {
+    data.daily.forEach((day, index) => {
         const dayDiv = document.createElement('div');
         dayDiv.classList.add('day-forecast');
-        dayDiv.addEventListener('click', () => displayHourlyForecast(i, data));
+        dayDiv.addEventListener('click', () => displayHourlyForecast(index, data));
 
-        // By appending 'T00:00', we ensure the date is parsed in the local timezone, preventing day-of-the-week errors.
-        const date = new Date(daily.time[i] + 'T00:00');
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-
-        const dayNameElement = document.createElement('h2');
-        dayNameElement.textContent = dayName;
-
-        const weatherIcon = document.createElement('img');
-        weatherIcon.src = getWeatherIcon(daily.weather_code[i]);
-        weatherIcon.alt = 'Weather icon';
-
-        const tempElement = document.createElement('p');
-        tempElement.classList.add('temp');
-        tempElement.innerHTML = `<span class="max">${Math.round(daily.temperature_2m_max[i])}°F</span> / ${Math.round(daily.temperature_2m_min[i])}°F`;
-
-        const sunrise = new Date(daily.sunrise[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const sunset = new Date(daily.sunset[i]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const sunriseSunsetElement = document.createElement('div');
-        sunriseSunsetElement.classList.add('sunrise-sunset');
-        sunriseSunsetElement.innerHTML = `<div><i class="wi wi-sunrise"></i> ${sunrise}</div><div><i class="wi wi-sunset"></i> ${sunset}</div>`;
-
-        const goodBoatingDay = isGoodBoatingDay(hourly, i);
-        const boatingDayElement = document.createElement('div');
-        boatingDayElement.classList.add('boating-day');
-        boatingDayElement.innerHTML = `
-            <div>MORN: <span class="${goodBoatingDay.morning.isGood ? 'yes' : 'no'}">${goodBoatingDay.morning.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.morning.reason)}"></i></div>
-            <div>AFT: <span class="${goodBoatingDay.afternoon.isGood ? 'yes' : 'no'}">${goodBoatingDay.afternoon.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(goodBoatingDay.afternoon.reason)}"></i></div>
+        dayDiv.innerHTML = `
+            <h2>${day.dayName}</h2>
+            <img src="${day.icon}" alt="Weather icon">
+            <p class="temp"><span class="max">${Math.round(day.maxTemp)}°F</span> / ${Math.round(day.minTemp)}°F</p>
+            <div class="sunrise-sunset">
+                <div><i class="wi wi-sunrise"></i> ${day.sunrise}</div>
+                <div><i class="wi wi-sunset"></i> ${day.sunset}</div>
+            </div>
+            <div class="boating-day">
+                <div>MORN: <span class="${day.boatingDecision.morning.isGood ? 'yes' : 'no'}">${day.boatingDecision.morning.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(day.boatingDecision.morning.reason)}"></i></div>
+                <div>AFT: <span class="${day.boatingDecision.afternoon.isGood ? 'yes' : 'no'}">${day.boatingDecision.afternoon.isGood ? 'YES' : 'NO'}</span> <i class="wi ${getReasonIcon(day.boatingDecision.afternoon.reason)}"></i></div>
+            </div>
+            <p class="weather-description">${day.description}</p>
         `;
-
-        dayDiv.appendChild(dayNameElement);
-        dayDiv.appendChild(weatherIcon);
-        dayDiv.appendChild(tempElement);
-        dayDiv.appendChild(sunriseSunsetElement);
-        dayDiv.appendChild(boatingDayElement);
-
-        const weatherDescriptionElement = document.createElement('p');
-        weatherDescriptionElement.classList.add('weather-description');
-        weatherDescriptionElement.textContent = getWeatherDescription(daily.weather_code[i]);
-        dayDiv.appendChild(weatherDescriptionElement);
-
         forecastContainer.appendChild(dayDiv);
-    }
+    });
 
-    // Automatically display the hourly forecast for the current day (index 0)
     displayHourlyForecast(0, data);
     hideLoader();
 }
 
 function displayHourlyForecast(dayIndex, data) {
-    // Highlight the selected day
-    const allDays = document.querySelectorAll('.day-forecast');
-    allDays.forEach(day => day.classList.remove('selected'));
-    allDays[dayIndex].classList.add('selected');
+    document.querySelectorAll('.day-forecast').forEach((day, index) => {
+        day.classList.toggle('selected', index === dayIndex);
+    });
 
     const hourlyContainer = document.getElementById('hourly-forecast-container');
     const hourlyDetails = document.getElementById('hourly-forecast-details');
     const hourlyDay = document.getElementById('hourly-forecast-day');
 
     hourlyDetails.innerHTML = '';
-
-    // Remove existing weather description if it exists
-    const existingDescription = hourlyContainer.querySelector('.weather-description');
-    if (existingDescription) {
-        existingDescription.remove();
+    const dayData = data.hourly[dayIndex];
+    if (!dayData || dayData.length === 0) {
+        hourlyContainer.style.display = 'none';
+        return;
     }
 
-    const date = new Date(data.daily.time[dayIndex] + 'T00:00');
+    const date = dayData[0].time;
     hourlyDay.textContent = `Hourly Forecast for ${date.toLocaleDateString('en-US', { weekday: 'long' })}`;
 
-    const startIndex = dayIndex * 24;
-    const endIndex = startIndex + 24;
-
-    for (let i = startIndex; i < endIndex && i < data.hourly.time.length; i++) {
+    dayData.forEach(hour => {
         const hourlyItem = document.createElement('div');
         hourlyItem.classList.add('hourly-item');
-        const hour = new Date(data.hourly.time[i]).getHours();
-        hourlyItem.id = `hourly-item-${hour}`;
-
-        const time = new Date(data.hourly.time[i]).toLocaleTimeString([], { hour: 'numeric', hour12: true });
-        const windSpeed = data.hourly.wind_speed_10m[i];
-        const precipitation = data.hourly.precipitation_probability[i];
-
-        let tideHtml = '';
-        if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
-            const tide = data.marine.hourly.sea_level_height_msl[i];
-            if (tide !== null && !isNaN(tide)) {
-                tideHtml = `<div><i class="wi wi-barometer"></i> ${tide.toFixed(2)}ft</div>`;
-            }
-        }
+        const waveHtml = hour.wave ? `<div><i class="wi wi-ocean"></i> ${hour.wave}ft</div>` : '';
+        const tideHtml = hour.tide ? `<div><i class="wi wi-barometer"></i> ${hour.tide}ft</div>` : '';
 
         hourlyItem.innerHTML = `
-            <div class="time">${time}</div>
-            <div><i class="wi wi-strong-wind"></i> ${Math.round(windSpeed)} mph</div>
-            <div><i class="wi wi-raindrop"></i> ${precipitation}%</div>
+            <div class="time">${hour.time.toLocaleTimeString([], { hour: 'numeric', hour12: true })}</div>
+            <div><i class="wi wi-thermometer"></i> ${hour.temperature}°F</div>
+            <div><i class="wi wi-strong-wind"></i> ${hour.wind} mph</div>
+            <div><i class="wi wi-raindrop"></i> ${hour.precipitation}%</div>
+            ${waveHtml}
             ${tideHtml}
         `;
         hourlyDetails.appendChild(hourlyItem);
-    }
+    });
 
     hourlyContainer.style.display = 'block';
-    document.querySelector('.tide-disclaimer').style.display = (data.marine ? 'block' : 'none');
+    document.getElementById('charts-container').style.display = 'block';
 
-    if (dayIndex === 0) {
-        const currentHour = new Date().getHours();
-        const currentHourElement = document.getElementById(`hourly-item-${currentHour}`);
-        if (currentHourElement) {
-            setTimeout(() => {
-                currentHourElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-            }, 100);
-        }
-    }
-
-    const chartsContainer = document.getElementById('charts-container');
-    const hourlyTimeData = data.hourly.time.slice(startIndex, endIndex);
-    const hourlyWindData = data.hourly.wind_speed_10m.slice(startIndex, endIndex);
-    const hourlyPrecipitationData = data.hourly.precipitation_probability.slice(startIndex, endIndex);
-    const hourlyTemperatureData = data.hourly.temperature_2m.slice(startIndex, endIndex);
-    const sunrise = data.daily.sunrise[dayIndex];
-    const sunset = data.daily.sunset[dayIndex];
-
-    let hourlyTideData = null;
-    let hasTideData = false;
-
-    if (data.marine && data.marine.hourly && data.marine.hourly.sea_level_height_msl) {
-        hourlyTideData = data.marine.hourly.sea_level_height_msl.slice(startIndex, endIndex);
-        hasTideData = hourlyTideData.some(tide => tide !== null && !isNaN(tide));
-    }
-
-    const tideChartElement = document.getElementById('tide-chart');
-    if (tideChartElement) {
-        tideChartElement.parentElement.style.display = hasTideData ? 'block' : 'none';
-    }
-    document.querySelector('.tide-disclaimer').style.display = hasTideData ? 'block' : 'none';
-
-    chartsContainer.style.display = 'block';
-    displayHourlyCharts(hourlyTimeData, hourlyWindData, hourlyPrecipitationData, hourlyTemperatureData, hourlyTideData, sunrise, sunset);
+    displayHourlyCharts(
+        dayData.map(h => h.time),
+        dayData.map(h => h.wind),
+        dayData.map(h => h.precipitation),
+        dayData.map(h => h.temperature),
+        dayData.map(h => h.wave),
+        data.tideData,
+        data.daily[dayIndex].sunrise,
+        data.daily[dayIndex].sunset
+    );
 }
 
-function displayHourlyCharts(timeData, windData, precipitationData, temperatureData, tideData, sunrise, sunset) {
-    if (windChart) windChart.destroy();
-    if (precipitationChart) precipitationChart.destroy();
-    if (temperatureChart) temperatureChart.destroy();
-    if (tideChart) tideChart.destroy();
+function displayHourlyCharts(timeData, windData, precipitationData, temperatureData, waveData, tideData, sunrise, sunset) {
+    [windChart, precipitationChart, temperatureChart, waveChart, tideChart].forEach(chart => chart?.destroy());
 
     const labels = timeData.map(t => new Date(t).toLocaleTimeString([], { hour: 'numeric', hour12: true }));
-
-    // Prepare Icon Images
-    const sunriseIcon = new Image(24, 24);
-    sunriseIcon.src = 'icons/sunrise.svg';
-    const sunsetIcon = new Image(24, 24);
-    sunsetIcon.src = 'icons/sunset.svg';
+    const sunriseIcon = new Image(24, 24); sunriseIcon.src = 'icons/sunrise.svg';
+    const sunsetIcon = new Image(24, 24); sunsetIcon.src = 'icons/sunset.svg';
 
     const timeDataMs = timeData.map(t => new Date(t).getTime());
-    const sunriseMs = new Date(sunrise).getTime();
-    const sunsetMs = new Date(sunset).getTime();
-
-    const findClosestIndex = (times, targetTime) => {
-        return times.reduce((prev, curr, index) => {
-            const prevDiff = Math.abs(targetTime - times[prev]);
-            const currDiff = Math.abs(targetTime - curr);
-            return currDiff < prevDiff ? index : prev;
-        }, 0);
-    };
-
+    let sunriseToParse = sunrise, sunsetToParse = sunset;
+    if ((sunrise.includes('AM') || sunrise.includes('PM')) && timeData.length > 0) {
+        const forecastDate = new Date(timeData[0]).toDateString();
+        sunriseToParse = `${forecastDate} ${sunrise}`;
+        sunsetToParse = `${forecastDate} ${sunset}`;
+    }
+    const sunriseMs = new Date(sunriseToParse).getTime();
+    const sunsetMs = new Date(sunsetToParse).getTime();
+    const findClosestIndex = (times, target) => times.reduce((prev, curr, i) => Math.abs(target-curr) < Math.abs(target-times[prev]) ? i : prev, 0);
     const sunriseIndex = findClosestIndex(timeDataMs, sunriseMs);
     const sunsetIndex = findClosestIndex(timeDataMs, sunsetMs);
 
     const getCommonOptions = (title) => ({
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            mode: 'index',
-            intersect: false,
-        },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                enabled: true,
-            },
-        },
+        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { enabled: true } },
         scales: {
-            x: {
-                ticks: { color: 'rgba(255, 255, 255, 0.8)' },
-                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-            },
-            y: {
-                ticks: { color: 'rgba(255, 255, 255, 0.8)' },
-                grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                title: {
-                    display: true,
-                    text: title,
-                    color: 'rgba(255, 255, 255, 0.8)'
-                }
-            }
+            x: { ticks: { color: 'rgba(255, 255, 255, 0.8)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+            y: { ticks: { color: 'rgba(255, 255, 255, 0.8)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' }, title: { display: true, text: title, color: 'rgba(255, 255, 255, 0.8)' } }
         },
     });
 
-    const getAnnotationOptions = (data, icon, index) => ({
-        type: 'point',
-        xValue: index,
-        yValue: data[index],
-        pointStyle: icon,
-    });
+    const getAnnotationOptions = (data, icon, index) => ({ type: 'point', xValue: index, yValue: data[index], pointStyle: icon });
 
-    const syncCharts = (hoveredChart, index) => {
-        const charts = [windChart, precipitationChart, temperatureChart, tideChart].filter(Boolean);
-        charts.forEach(chart => {
-            if (chart !== hoveredChart) {
-                const tooltip = chart.tooltip;
-                if (tooltip) {
-                    const activeElements = tooltip.getActiveElements();
-                    if (activeElements.length === 0 || activeElements[0].index !== index) {
-                        tooltip.setActiveElements([{ datasetIndex: 0, index: index }], {x:0, y:0});
-                        chart.update();
-                    }
-                }
-            }
-        });
-    };
-
-    const clearSync = () => {
-        const charts = [windChart, precipitationChart, temperatureChart, tideChart].filter(Boolean);
-        setTimeout(() => {
-            const anyActive = charts.some(c => c.tooltip && c.tooltip.getActiveElements().length > 0);
-            if (!anyActive) {
-                charts.forEach(c => {
-                    if (c.tooltip) {
-                        c.tooltip.setActiveElements([], {x:0, y:0});
-                        c.update();
-                    }
-                });
-            }
-        }, 100);
-    };
-
-    const baseOnHover = (event, chartElement, chart) => {
-        if (chartElement.length > 0) {
-            syncCharts(chart, chartElement[0].index);
-        } else {
-            clearSync();
-        }
-    };
-
-    // Wind Chart
     const windOptions = getCommonOptions('Wind Speed (mph)');
-    windOptions.onHover = baseOnHover;
+    windOptions.scales.y.min = 0;
     windOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(windData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(windData, sunsetIcon, sunsetIndex) }};
-    const windCtx = document.getElementById('wind-chart').getContext('2d');
-    windChart = new Chart(windCtx, { type: 'line', data: { labels, datasets: [{ label: 'Wind Speed', data: windData, borderColor: 'rgba(255, 99, 132, 0.8)', backgroundColor: 'rgba(255, 99, 132, 0.2)', fill: true, tension: 0.4 }] }, options: windOptions });
+    windChart = new Chart(document.getElementById('wind-chart').getContext('2d'), { type: 'line', data: { labels, datasets: [{ label: 'Wind Speed', data: windData, borderColor: 'rgba(255, 99, 132, 0.8)', backgroundColor: 'rgba(255, 99, 132, 0.2)', fill: true, tension: 0.4 }] }, options: windOptions });
 
-    // Precipitation Chart
     const precipOptions = getCommonOptions('Precipitation (%)');
-    precipOptions.scales.y.min = 0;
-    precipOptions.scales.y.max = 100;
-    precipOptions.onHover = baseOnHover;
+    precipOptions.scales.y.min = 0; precipOptions.scales.y.max = 100;
     precipOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(precipitationData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(precipitationData, sunsetIcon, sunsetIndex) }};
-    const precipitationCtx = document.getElementById('precipitation-chart').getContext('2d');
-    precipitationChart = new Chart(precipitationCtx, { type: 'line', data: { labels, datasets: [{ label: 'Precipitation', data: precipitationData, borderColor: 'rgba(54, 162, 235, 0.8)', backgroundColor: 'rgba(54, 162, 235, 0.2)', fill: true, tension: 0.4 }] }, options: precipOptions });
+    precipitationChart = new Chart(document.getElementById('precipitation-chart').getContext('2d'), { type: 'line', data: { labels, datasets: [{ label: 'Precipitation', data: precipitationData, borderColor: 'rgba(54, 162, 235, 0.8)', backgroundColor: 'rgba(54, 162, 235, 0.2)', fill: true, tension: 0.4 }] }, options: precipOptions });
 
-    // Temperature Chart
     const tempOptions = getCommonOptions('Temperature (°F)');
-    tempOptions.onHover = baseOnHover;
     tempOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(temperatureData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(temperatureData, sunsetIcon, sunsetIndex) }};
-    const temperatureCtx = document.getElementById('temperature-chart').getContext('2d');
-    temperatureChart = new Chart(temperatureCtx, { type: 'line', data: { labels, datasets: [{ label: 'Temperature', data: temperatureData, borderColor: 'rgba(255, 206, 86, 0.8)', backgroundColor: 'rgba(255, 206, 86, 0.2)', fill: true, tension: 0.4 }] }, options: tempOptions });
+    temperatureChart = new Chart(document.getElementById('temperature-chart').getContext('2d'), { type: 'line', data: { labels, datasets: [{ label: 'Temperature', data: temperatureData, borderColor: 'rgba(255, 206, 86, 0.8)', backgroundColor: 'rgba(255, 206, 86, 0.2)', fill: true, tension: 0.4 }] }, options: tempOptions });
 
-    // Tide Chart
-    if (tideData && tideData.some(t => t !== null && !isNaN(t))) {
-        const tideOptions = getCommonOptions('Tide Height (ft)');
-        tideOptions.onHover = baseOnHover;
-        tideOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(tideData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(tideData, sunsetIcon, sunsetIndex) }};
-        const tideCtx = document.getElementById('tide-chart').getContext('2d');
-        tideChart = new Chart(tideCtx, { type: 'line', data: { labels, datasets: [{ label: 'Tide Height', data: tideData, borderColor: 'rgba(75, 192, 192, 0.8)', backgroundColor: 'rgba(75, 192, 192, 0.2)', fill: true, tension: 0.4 }] }, options: tideOptions });
+    const waveChartElement = document.getElementById('wave-chart');
+    if (waveData && waveData.some(w => w !== null && !isNaN(w))) {
+        waveChartElement.parentElement.style.display = 'block';
+        const waveOptions = getCommonOptions('Wave Height (ft)');
+        waveOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(waveData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(waveData, sunsetIcon, sunsetIndex) }};
+        waveChart = new Chart(waveChartElement.getContext('2d'), { type: 'line', data: { labels, datasets: [{ label: 'Wave Height', data: waveData, borderColor: 'rgba(75, 192, 192, 0.8)', backgroundColor: 'rgba(75, 192, 192, 0.2)', fill: true, tension: 0.4 }] }, options: waveOptions });
     } else {
-        tideChart = null;
+        waveChartElement.parentElement.style.display = 'none';
+    }
+
+    const tideChartElement = document.getElementById('tide-chart');
+    const tideDisclaimer = document.querySelector('.tide-disclaimer');
+    if (tideData && tideData.length > 0) {
+        tideChartElement.parentElement.style.display = 'block';
+        tideDisclaimer.style.display = 'block';
+        const alignedTideData = labels.map(label => {
+            const labelDate = new Date(`${timeData[0].toDateString()} ${label}`);
+            let closestTide = null, minDiff = Infinity;
+            tideData.forEach(tidePoint => {
+                const diff = Math.abs(labelDate - new Date(tidePoint.t));
+                if (diff < minDiff) { minDiff = diff; closestTide = parseFloat(tidePoint.v); }
+            });
+            return closestTide;
+        });
+        const tideOptions = getCommonOptions('Tide (ft MLLW)');
+        const tideAnnotations = {
+            sunrise: getAnnotationOptions(alignedTideData, sunriseIcon, sunriseIndex),
+            sunset: getAnnotationOptions(alignedTideData, sunsetIcon, sunsetIndex)
+        };
+
+        let lastTide = null;
+        let trend = 0; // 1 for rising, -1 for falling
+        alignedTideData.forEach((tide, i) => {
+            if (lastTide !== null) {
+                const newTrend = Math.sign(tide - lastTide);
+                if (trend === 1 && newTrend === -1) { // High tide
+                    tideAnnotations[`high-${i}`] = { type: 'point', xValue: i - 1, yValue: lastTide, backgroundColor: 'rgba(255, 99, 132, 0.8)', radius: 5, content: 'H' };
+                } else if (trend === -1 && newTrend === 1) { // Low tide
+                    tideAnnotations[`low-${i}`] = { type: 'point', xValue: i - 1, yValue: lastTide, backgroundColor: 'rgba(54, 162, 235, 0.8)', radius: 5, content: 'L' };
+                }
+                if (newTrend !== 0) trend = newTrend;
+            }
+            lastTide = tide;
+        });
+
+        tideOptions.plugins.annotation = { annotations: tideAnnotations };
+        tideChart = new Chart(tideChartElement.getContext('2d'), { type: 'line', data: { labels, datasets: [{ label: 'Tide', data: alignedTideData, borderColor: 'rgba(153, 102, 255, 0.8)', backgroundColor: 'rgba(153, 102, 255, 0.2)', fill: true, tension: 0.4 }] }, options: tideOptions });
+    } else {
+        tideChartElement.parentElement.style.display = 'none';
+        tideDisclaimer.style.display = 'none';
     }
 }
 
-
-function getWeatherIcon(code) {
-    if (code === 0) return 'icons/sun.svg';
-    if (code >= 1 && code <= 3) return 'icons/cloudy.svg';
-    if (code === 45 || code === 48) return 'icons/fog.svg';
-    if (code >= 51 && code <= 67) return 'icons/rain.svg';
-    if (code >= 71 && code <= 77) return 'icons/snow.svg';
-    if (code >= 80 && code <= 86) return 'icons/showers.svg';
-    if (code >= 95 && code <= 99) return 'icons/thunderstorm.svg';
-    return 'icons/cloudy.svg';
+function displayWeatherAlerts(alertData) {
+    const alertsContainer = document.getElementById('weather-alerts');
+    alertsContainer.innerHTML = '';
+    if (alertData.features && alertData.features.length > 0) {
+        alertData.features.forEach(alert => {
+            const alertDiv = document.createElement('div');
+            alertDiv.classList.add('weather-alert', `weather-alert-${alert.properties.severity.toLowerCase()}`);
+            alertDiv.innerHTML = `<h3>${alert.properties.headline}</h3><p><strong>Effective:</strong> ${new Date(alert.properties.effective).toLocaleString()}</p><p>${alert.properties.description}</p>`;
+            alertsContainer.appendChild(alertDiv);
+        });
+    }
 }
 
 function displayRadarMap(lat, lon) {
     const radarContainer = document.getElementById('radar-map-container');
-    radarContainer.innerHTML = ''; // Clear previous map
-    radarContainer.style.height = '400px';
-
-    if (radarMap) {
-        radarMap.remove();
-    }
-
+    radarContainer.innerHTML = ''; radarContainer.style.height = '400px';
+    if (radarMap) radarMap.remove();
     radarMap = L.map('radar-map-container').setView([lat, lon], 10);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(radarMap);
-
-    const nwsWmsUrl = 'https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms';
-    const isoTime = new Date().toISOString();
-    L.tileLayer.wms(nwsWmsUrl, {
-        layers: 'CREF',
-        format: 'image/png',
-        transparent: true,
-        opacity: 0.8,
-        time: isoTime,
-        attribution: 'NWS'
-    }).addTo(radarMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(radarMap);
+    L.tileLayer.wms('https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms', { layers: 'CREF', format: 'image/png', transparent: true, opacity: 0.8, time: new Date().toISOString(), attribution: 'NWS' }).addTo(radarMap);
 }
 
-let userThresholds = {
-    maxWind: 12, // knots
-    maxPrecip: 25,
-    minTemp: 60,
-    maxTemp: 90,
-};
+// --- WEATHER LOGIC ---
+function isGoodBoatingDayNWS(periods, hourlyDataForDay) {
+    const results = { morning: { isGood: true, reason: 'clear' }, afternoon: { isGood: true, reason: 'clear' } };
 
-function isGoodBoatingDay(hourly, dayIndex) {
-    const maxWind = userThresholds.maxWind * 1.151; // Convert knots to mph
-    const maxPrecip = userThresholds.maxPrecip;
-    const minTemp = userThresholds.minTemp;
-    const maxTemp = userThresholds.maxTemp;
+    // This function will check periods or hourly data, depending on what's available
+    const checkConditions = (hour, wind, precip, temp, wave) => {
+        let reason = 'clear';
+        if (wind > (userThresholds.maxWind * 1.151)) reason = 'wind';
+        else if (precip > userThresholds.maxPrecip) reason = 'precip';
+        else if (temp < userThresholds.minTemp || temp > userThresholds.maxTemp) reason = 'temp';
+        else if (wave > userThresholds.maxWave) reason = 'wave';
 
-    const startIndex = dayIndex * 24;
-    const endIndex = startIndex + 24;
-
-    const results = {
-        morning: { isGood: true, reason: 'clear' },
-        afternoon: { isGood: true, reason: 'clear' }
+        if (reason !== 'clear') {
+            if (hour >= 8 && hour < 15) results.morning = { isGood: false, reason };
+            if (hour >= 15 && hour < 20) results.afternoon = { isGood: false, reason };
+        }
     };
 
-    for (let i = startIndex; i < endIndex && i < hourly.time.length; i++) {
-        const hour = new Date(hourly.time[i]).getHours();
-        const wind = hourly.wind_speed_10m[i];
-        const precip = hourly.precipitation_probability[i];
-        const temp = hourly.temperature_2m[i];
-
-        let reason = 'clear';
-        if (wind > maxWind) reason = 'wind';
-        else if (precip > maxPrecip) reason = 'precip';
-        else if (temp < minTemp || temp > maxTemp) reason = 'temp';
-
-        const isBadWeather = reason !== 'clear';
-
-        if (hour >= 8 && hour < 15) { // Morning
-            if (isBadWeather && results.morning.isGood) {
-                results.morning = { isGood: false, reason: reason };
-            }
-        }
-        if (hour >= 15 && hour < 20) { // Afternoon
-            if (isBadWeather && results.afternoon.isGood) {
-                results.afternoon = { isGood: false, reason: reason };
-            }
-        }
+    // NWS data can be complex. We prioritize hourly data if available for more accuracy.
+    if (hourlyDataForDay && hourlyDataForDay.length > 0) {
+        hourlyDataForDay.forEach(hourData => {
+            checkConditions(
+                hourData.time.getHours(),
+                hourData.wind,
+                hourData.precipitation,
+                hourData.temperature,
+                hourData.wave
+            );
+        });
+    } else if (periods) { // Fallback to less granular period data
+        periods.forEach(period => {
+            const windSpeedMatch = period.windSpeed.match(/(\d+)/);
+            checkConditions(
+                new Date(period.startTime).getHours(),
+                windSpeedMatch ? parseInt(windSpeedMatch[0], 10) : 0,
+                period.probabilityOfPrecipitation?.value || 0,
+                period.temperature,
+                null // Wave height is not in period data, have to get from hourly
+            );
+        });
     }
 
     return results;
 }
 
-function getReasonIcon(reason) {
-    switch (reason) {
-        case 'wind':
-            return 'wi-strong-wind';
-        case 'precip':
-            return 'wi-raindrop';
-        case 'temp':
-            return 'wi-thermometer';
-        default:
-            return 'wi-day-sunny';
+function isGoodBoatingDay(hourly, dayIndex) {
+    const results = { morning: { isGood: true, reason: 'clear' }, afternoon: { isGood: true, reason: 'clear' } };
+    const startIndex = dayIndex * 24, endIndex = startIndex + 24;
+    for (let i = startIndex; i < endIndex && i < hourly.time.length; i++) {
+        const hour = new Date(hourly.time[i]).getHours();
+        let reason = 'clear';
+        if (hourly.wind_speed_10m[i] > (userThresholds.maxWind * 1.151)) reason = 'wind';
+        else if (hourly.precipitation_probability[i] > userThresholds.maxPrecip) reason = 'precip';
+        else if (hourly.temperature_2m[i] < userThresholds.minTemp || hourly.temperature_2m[i] > userThresholds.maxTemp) reason = 'temp';
+        if (reason !== 'clear') {
+            if (hour >= 8 && hour < 15) results.morning = { isGood: false, reason };
+            if (hour >= 15 && hour < 20) results.afternoon = { isGood: false, reason };
+        }
     }
+    return results;
+}
+
+function getReasonIcon(reason) {
+    const icons = { wind: 'wi-strong-wind', precip: 'wi-raindrop', temp: 'wi-thermometer', wave: 'wi-ocean', clear: 'wi-day-sunny' };
+    return icons[reason] || 'wi-day-sunny';
+}
+
+// --- MAPPERS ---
+function mapNwsIconToAppIcon(iconUrl) {
+    const mapping = { "skc": "sun", "few": "cloudy", "sct": "cloudy", "bkn": "cloudy", "ovc": "cloudy", "wind_skc": "sun", "wind_few": "cloudy", "wind_sct": "cloudy", "wind_bkn": "cloudy", "wind_ovc": "cloudy", "snow": "snow", "rain_snow": "rain", "rain_sleet": "rain", "snow_sleet": "snow", "fzra": "rain", "rain_fzra": "rain", "snow_fzra": "snow", "sleet": "rain", "rain": "rain", "rain_showers": "showers", "rain_showers_hi": "showers", "tsra": "thunderstorm", "tsra_sct": "thunderstorm", "tsra_hi": "thunderstorm", "tornado": "thunderstorm", "hurricane": "thunderstorm", "tropical_storm": "thunderstorm", "dust": "fog", "smoke": "fog", "haze": "fog", "hot": "sun", "cold": "sun", "blizzard": "snow", "fog": "fog" };
+    const key = Object.keys(mapping).find(key => iconUrl.includes(key));
+    return `icons/${mapping[key] || 'cloudy'}.svg`;
+}
+
+function getWeatherIcon(code) {
+    const icons = { 0: 'sun', 1: 'cloudy', 2: 'cloudy', 3: 'cloudy', 45: 'fog', 48: 'fog', 51: 'rain', 53: 'rain', 55: 'rain', 56: 'rain', 57: 'rain', 61: 'rain', 63: 'rain', 65: 'rain', 66: 'rain', 67: 'rain', 71: 'snow', 73: 'snow', 75: 'snow', 77: 'snow', 80: 'showers', 81: 'showers', 82: 'showers', 85: 'snow', 86: 'snow', 95: 'thunderstorm', 96: 'thunderstorm', 99: 'thunderstorm' };
+    return `icons/${icons[code] || 'cloudy'}.svg`;
 }
 
 function getWeatherDescription(code) {
-    const descriptions = {
-        0: 'Clear sky',
-        1: 'Mainly clear, partly cloudy, and overcast',
-        2: 'Partly cloudy',
-        3: 'Overcast',
-        45: 'Fog and depositing rime fog',
-        48: 'Fog and depositing rime fog',
-        51: 'Drizzle: Light, moderate, and dense intensity',
-        53: 'Drizzle: Light, moderate, and dense intensity',
-        55: 'Drizzle: Light, moderate, and dense intensity',
-        56: 'Freezing Drizzle: Light and dense intensity',
-        57: 'Freezing Drizzle: Light and dense intensity',
-        61: 'Rain: Slight, moderate and heavy intensity',
-        63: 'Rain: Slight, moderate and heavy intensity',
-        65: 'Rain: Slight, moderate and heavy intensity',
-        66: 'Freezing Rain: Light and heavy intensity',
-        67: 'Freezing Rain: Light and heavy intensity',
-        71: 'Snow fall: Slight, moderate, and heavy intensity',
-        73: 'Snow fall: Slight, moderate, and heavy intensity',
-        75: 'Snow fall: Slight, moderate, and heavy intensity',
-        77: 'Snow grains',
-        80: 'Rain showers: Slight, moderate, and violent',
-        81: 'Rain showers: Slight, moderate, and violent',
-        82: 'Rain showers: Slight, moderate, and violent',
-        85: 'Snow showers slight and heavy',
-        86: 'Snow showers slight and heavy',
-        95: 'Thunderstorm: Slight or moderate',
-        96: 'Thunderstorm with slight and heavy hail',
-        99: 'Thunderstorm with slight and heavy hail',
-    };
+    const descriptions = { 0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Fog', 51: 'Drizzle', 53: 'Drizzle', 55: 'Drizzle', 61: 'Rain', 63: 'Rain', 65: 'Rain', 71: 'Snow', 73: 'Snow', 75: 'Snow', 77: 'Snow grains', 80: 'Rain showers', 81: 'Rain showers', 82: 'Rain showers', 85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm', 96: 'Thunderstorm', 99: 'Thunderstorm' };
     return descriptions[code] || 'No description available.';
+}
+
+// --- SETTINGS ---
+let userThresholds = { maxWind: 12, maxPrecip: 25, minTemp: 60, maxTemp: 90, maxWave: 4 };
+function loadThresholds() {
+    const saved = localStorage.getItem('userThresholds');
+    if (saved) {
+        const savedThresholds = JSON.parse(saved);
+        // Merge saved settings with defaults to ensure new settings are not missed
+        userThresholds = { ...userThresholds, ...savedThresholds };
+    }
+    document.getElementById('max-wind').value = userThresholds.maxWind;
+    document.getElementById('max-precip').value = userThresholds.maxPrecip;
+    document.getElementById('min-temp').value = userThresholds.minTemp;
+    document.getElementById('max-temp').value = userThresholds.maxTemp;
+    document.getElementById('max-wave').value = userThresholds.maxWave;
 }
