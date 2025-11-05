@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
     <div id="loader-overlay">
@@ -24,7 +25,7 @@
         </svg>
         <h1>Can I go boating today?</h1>
         <svg id="settings-icon" class="settings-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.4 11.6c-.2-.5-.4-1-.7-1.3l1.5-1.5c.4-.4.4-1 0-1.4l-2.8-2.8c-.4-.4-1-.4-1.4 0l-1.5 1.5c-.3-.3-.8-.5-1.3-.7l-.3-2.1c-.1-.6-.6-1-1.2-1H9.4c-.6 0-1.1.4-1.2 1l-.3 2.1c-.5.2-1 .4-1.3.7l-1.5-1.5c-.4-.4-1-.4-1.4 0L1.1 8.9c-.4.4-.4 1 0 1.4l1.5 1.5c-.3.3-.5.8-.7 1.3l-2.1.3c-.6.1-1 .6-1 1.2v2.8c0 .6.4 1.1 1 1.2l2.1.3c.2.5.4 1 .7 1.3l-1.5 1.5c-.4.4-.4 1 0 1.4l2.8 2.8c.4.4 1 .4 1.4 0l1.5-1.5c.3.3.8.5 1.3.7l.3 2.1c.1.6.6 1 1.2 1h2.8c.6 0 1.1-.4 1.2-1l.3-2.1c.5-.2 1-.4 1.3-.7l1.5 1.5c.4.4 1 .4 1.4 0l2.8-2.8c.4-.4.4-1 0-1.4l-1.5-1.5c.3-.3.5-.8.7-1.3l2.1-.3c.6-.1 1-.6 1-1.2v-2.8c0-.6-.4-1.1-1-1.2l-2.1-.3zM12 15.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
+            <path d="M19.4 11.6c-.2-.5-.4-1-.7-1.3l1.5-1.5c.4-.4.4-1 0-1.4l-2.8-2.8c-.4-.4-1-.4-1.4 0l-1.5 1.5c-.3-.3-.8-.5-1.3-.7l-.3-2.1c-.1-.6-.6-1-1.2-1H9.4c-.6 0-1.1.4-1.2 1l-.3 2.1c-.5.2-1 .4-1.3.7l-1.5-1.5c-.4-.4-1-.4-1.4 0L1.1 8.9c-.4.4-.4 1 0 1.4l1.5 1.5c-.3.3-.5.8-.7 1.3l-2.1.3c-.6.1-1 .6-1 1.2v2.8c0 .6.4 1.1 1 1.2l2.1.3c.2.5.4 1 .7 1.3l-1.5 1.5c-.4.4-.4 1 0 1.4l2.8 2.8c.4.4 1 .4 1.4 0l1.5-1.5c.3.3.8.5 1.3.7l.3 2.1c.1.6.6 1 1.2 1h2.8c.6 0 1.1-.4 1.2-1l.3-2.1c.5-.2 1-.4 1.3-.7l1.5 1.5c.4.4 1 .4 1.4 0l2.8-2.8c-.4-.4.4-1 0-1.4l-1.5-1.5c.3-.3-.5-.8-.7-1.3l2.1-.3c.6-.1 1-.6 1-1.2v-2.8c0-.6-.4-1.1-1-1.2l-2.1-.3zM12 15.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
         </svg>
     </div>
     <div id="location-container">
@@ -48,9 +49,9 @@
             <div class="chart-container">
                 <canvas id="temperature-chart"></canvas>
             </div>
-            <div class="chart-container">
-                <canvas id="wave-chart"></canvas>
-            </div>
+                <div class="chart-container">
+                    <canvas id="wave-chart"></canvas>
+                </div>
             <div class="chart-container">
                 <canvas id="tide-chart"></canvas>
             </div>
@@ -58,8 +59,6 @@
         <p class="tide-disclaimer" style="display: none;">Tide data from nearest station. Verify with official charts.</p>
     </div>
     <div id="radar-map-container"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="script.js" defer></script>
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -92,5 +91,6 @@
     <div class="disclaimer">
         <p>This application has been optimized for marine forecasting, but boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.</p>
     </div>
+    <script src="script.js" defer></script>
 </body>
 </html>
