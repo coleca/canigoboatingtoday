@@ -1,0 +1,356 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - heading "High Wind Watch issued November 5 at 2:44AM EST until November 6 at 8:00AM EST by NWS Upton NY" [level=3] [ref=e4]
+    - paragraph [ref=e5]:
+      - strong [ref=e6]: "Effective:"
+      - text: 11/5/2025, 7:44:00 AM
+    - paragraph [ref=e7]: "* WHAT...West winds 20 to 30 mph with gusts up to 60 mph possible. * WHERE...Portions of southern Connecticut, northeast New Jersey, and southeast New York. * WHEN...From this evening through Thursday morning. * IMPACTS...Damaging winds could blow down trees and power lines. Widespread power outages are possible. Travel could be difficult, especially for high profile vehicles."
+  - generic [ref=e8]:
+    - img [ref=e9]
+    - heading "Can I go boating today?" [level=1] [ref=e13]
+    - img [ref=e14] [cursor=pointer]
+  - generic [ref=e16]:
+    - generic [ref=e17]:
+      - textbox "Enter a location" [ref=e18]
+      - button "Get Weather" [ref=e19] [cursor=pointer]
+    - paragraph [ref=e20]: "Weather for: New York City, New York"
+  - generic [ref=e21]:
+    - generic [ref=e22] [cursor=pointer]:
+      - heading "Wed" [level=2] [ref=e23]
+      - img "Weather icon" [ref=e24]
+      - paragraph [ref=e25]:
+        - generic [ref=e26]: 64°F
+        - text: / 46°F
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e29]: 
+          - text: 6:32:28 AM
+        - generic [ref=e30]:
+          - generic [ref=e31]: 
+          - text: 4:49:21 PM
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - text: "MORN:"
+          - generic [ref=e34]: "NO"
+          - generic [ref=e35]: 
+        - generic [ref=e36]:
+          - text: "AFT:"
+          - generic [ref=e37]: "NO"
+          - generic [ref=e38]: 
+      - paragraph [ref=e39]: Partly Sunny
+    - generic [ref=e40] [cursor=pointer]:
+      - heading "Thu" [level=2] [ref=e41]
+      - img "Weather icon" [ref=e42]
+      - paragraph [ref=e43]:
+        - generic [ref=e44]: 53°F
+        - text: / 42°F
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e47]: 
+          - text: 6:32:28 AM
+        - generic [ref=e48]:
+          - generic [ref=e49]: 
+          - text: 4:49:21 PM
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - text: "MORN:"
+          - generic [ref=e52]: "NO"
+          - generic [ref=e53]: 
+        - generic [ref=e54]:
+          - text: "AFT:"
+          - generic [ref=e55]: "NO"
+          - generic [ref=e56]: 
+      - paragraph [ref=e57]: Sunny
+    - generic [ref=e58] [cursor=pointer]:
+      - heading "Fri" [level=2] [ref=e59]
+      - img "Weather icon" [ref=e60]
+      - paragraph [ref=e61]:
+        - generic [ref=e62]: 59°F
+        - text: / 56°F
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]: 
+          - text: 6:32:28 AM
+        - generic [ref=e66]:
+          - generic [ref=e67]: 
+          - text: 4:49:21 PM
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - text: "MORN:"
+          - generic [ref=e70]: "NO"
+          - generic [ref=e71]: 
+        - generic [ref=e72]:
+          - text: "AFT:"
+          - generic [ref=e73]: "NO"
+          - generic [ref=e74]: 
+      - paragraph [ref=e75]: Partly Sunny
+    - generic [ref=e76] [cursor=pointer]:
+      - heading "Sat" [level=2] [ref=e77]
+      - img "Weather icon" [ref=e78]
+      - paragraph [ref=e79]:
+        - generic [ref=e80]: 64°F
+        - text: / 51°F
+      - generic [ref=e81]:
+        - generic [ref=e82]:
+          - generic [ref=e83]: 
+          - text: 6:32:28 AM
+        - generic [ref=e84]:
+          - generic [ref=e85]: 
+          - text: 4:49:21 PM
+      - generic [ref=e86]:
+        - generic [ref=e87]:
+          - text: "MORN:"
+          - generic [ref=e88]: "NO"
+          - generic [ref=e89]: 
+        - generic [ref=e90]:
+          - text: "AFT:"
+          - generic [ref=e91]: "YES"
+          - generic [ref=e92]: 
+      - paragraph [ref=e93]: Light Rain Likely
+    - generic [ref=e94] [cursor=pointer]:
+      - heading "Sun" [level=2] [ref=e95]
+      - img "Weather icon" [ref=e96]
+      - paragraph [ref=e97]:
+        - generic [ref=e98]: 61°F
+        - text: / 43°F
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - generic [ref=e101]: 
+          - text: 6:32:28 AM
+        - generic [ref=e102]:
+          - generic [ref=e103]: 
+          - text: 4:49:21 PM
+      - generic [ref=e104]:
+        - generic [ref=e105]:
+          - text: "MORN:"
+          - generic [ref=e106]: "NO"
+          - generic [ref=e107]: 
+        - generic [ref=e108]:
+          - text: "AFT:"
+          - generic [ref=e109]: "NO"
+          - generic [ref=e110]: 
+      - paragraph [ref=e111]: Chance Light Rain
+    - generic [ref=e112] [cursor=pointer]:
+      - heading "Mon" [level=2] [ref=e113]
+      - img "Weather icon" [ref=e114]
+      - paragraph [ref=e115]:
+        - generic [ref=e116]: 46°F
+        - text: / 36°F
+      - generic [ref=e117]:
+        - generic [ref=e118]:
+          - generic [ref=e119]: 
+          - text: 6:32:28 AM
+        - generic [ref=e120]:
+          - generic [ref=e121]: 
+          - text: 4:49:21 PM
+      - generic [ref=e122]:
+        - generic [ref=e123]:
+          - text: "MORN:"
+          - generic [ref=e124]: "NO"
+          - generic [ref=e125]: 
+        - generic [ref=e126]:
+          - text: "AFT:"
+          - generic [ref=e127]: "NO"
+          - generic [ref=e128]: 
+      - paragraph [ref=e129]: Chance Light Rain
+    - generic [ref=e130] [cursor=pointer]:
+      - heading "Tue" [level=2] [ref=e131]
+      - img "Weather icon" [ref=e132]
+      - paragraph [ref=e133]:
+        - generic [ref=e134]: 43°F
+        - text: / 38°F
+      - generic [ref=e135]:
+        - generic [ref=e136]:
+          - generic [ref=e137]: 
+          - text: 6:32:28 AM
+        - generic [ref=e138]:
+          - generic [ref=e139]: 
+          - text: 4:49:21 PM
+      - generic [ref=e140]:
+        - generic [ref=e141]:
+          - text: "MORN:"
+          - generic [ref=e142]: "NO"
+          - generic [ref=e143]: 
+        - generic [ref=e144]:
+          - text: "AFT:"
+          - generic [ref=e145]: "NO"
+          - generic [ref=e146]: 
+      - paragraph [ref=e147]: Mostly Sunny
+  - generic [ref=e148]:
+    - heading "Hourly Forecast for Wednesday" [level=2] [ref=e149]
+    - generic [ref=e150]:
+      - generic [ref=e151]:
+        - generic [ref=e152]: 4 AM
+        - generic [ref=e153]:
+          - generic [ref=e154]: 
+          - text: 53°F
+        - generic [ref=e155]:
+          - generic [ref=e156]: 
+          - text: 10 mph
+        - generic [ref=e157]:
+          - generic [ref=e158]: 
+          - text: 0%
+        - generic [ref=e159]: 0.0ft
+      - generic [ref=e160]:
+        - generic [ref=e161]: 5 AM
+        - generic [ref=e162]:
+          - generic [ref=e163]: 
+          - text: 50°F
+        - generic [ref=e164]:
+          - generic [ref=e165]: 
+          - text: 9 mph
+        - generic [ref=e166]:
+          - generic [ref=e167]: 
+          - text: 1%
+        - generic [ref=e168]: 0.0ft
+      - generic [ref=e169]:
+        - generic [ref=e170]: 10 AM
+        - generic [ref=e171]:
+          - generic [ref=e172]: 
+          - text: 49°F
+        - generic [ref=e173]:
+          - generic [ref=e174]: 
+          - text: 8 mph
+        - generic [ref=e175]:
+          - generic [ref=e176]: 
+          - text: 2%
+        - generic [ref=e177]: 0.0ft
+      - generic [ref=e178]:
+        - generic [ref=e179]: 11 AM
+        - generic [ref=e180]:
+          - generic [ref=e181]: 
+          - text: 50°F
+        - generic [ref=e182]:
+          - generic [ref=e183]: 
+          - text: 7 mph
+        - generic [ref=e184]:
+          - generic [ref=e185]: 
+          - text: 6%
+        - generic [ref=e186]: 0.0ft
+      - generic [ref=e187]:
+        - generic [ref=e188]: 3 PM
+        - generic [ref=e189]:
+          - generic [ref=e190]: 
+          - text: 53°F
+        - generic [ref=e191]:
+          - generic [ref=e192]: 
+          - text: 6 mph
+        - generic [ref=e193]:
+          - generic [ref=e194]: 
+          - text: 18%
+        - generic [ref=e195]: 0.0ft
+      - generic [ref=e196]:
+        - generic [ref=e197]: 4 PM
+        - generic [ref=e198]:
+          - generic [ref=e199]: 
+          - text: 55°F
+        - generic [ref=e200]:
+          - generic [ref=e201]: 
+          - text: 7 mph
+        - generic [ref=e202]:
+          - generic [ref=e203]: 
+          - text: 0%
+        - generic [ref=e204]: 0.0ft
+      - generic [ref=e205]:
+        - generic [ref=e206]: 5 PM
+        - generic [ref=e207]:
+          - generic [ref=e208]: 
+          - text: 57°F
+        - generic [ref=e209]:
+          - generic [ref=e210]: 
+          - text: 8 mph
+        - generic [ref=e211]:
+          - generic [ref=e212]: 
+          - text: 42%
+        - generic [ref=e213]: 1.0ft
+      - generic [ref=e214]:
+        - generic [ref=e215]: 6 PM
+        - generic [ref=e216]:
+          - generic [ref=e217]: 
+          - text: 60°F
+        - generic [ref=e218]:
+          - generic [ref=e219]: 
+          - text: 10 mph
+        - generic [ref=e220]:
+          - generic [ref=e221]: 
+          - text: 69%
+        - generic [ref=e222]: 1.0ft
+      - generic [ref=e223]:
+        - generic [ref=e224]: 7 PM
+        - generic [ref=e225]:
+          - generic [ref=e226]: 
+          - text: 61°F
+        - generic [ref=e227]:
+          - generic [ref=e228]: 
+          - text: 13 mph
+        - generic [ref=e229]:
+          - generic [ref=e230]: 
+          - text: 21%
+        - generic [ref=e231]: 1.0ft
+      - generic [ref=e232]:
+        - generic [ref=e233]: 8 PM
+        - generic [ref=e234]:
+          - generic [ref=e235]: 
+          - text: 63°F
+        - generic [ref=e236]:
+          - generic [ref=e237]: 
+          - text: 15 mph
+        - generic [ref=e238]:
+          - generic [ref=e239]: 
+          - text: 6%
+        - generic [ref=e240]: 1.0ft
+      - generic [ref=e241]:
+        - generic [ref=e242]: 9 PM
+        - generic [ref=e243]:
+          - generic [ref=e244]: 
+          - text: 64°F
+        - generic [ref=e245]:
+          - generic [ref=e246]: 
+          - text: 16 mph
+        - generic [ref=e247]:
+          - generic [ref=e248]: 
+          - text: 4%
+        - generic [ref=e249]: 1.0ft
+      - generic [ref=e250]:
+        - generic [ref=e251]: 10 PM
+        - generic [ref=e252]:
+          - generic [ref=e253]: 
+          - text: 63°F
+        - generic [ref=e254]:
+          - generic [ref=e255]: 
+          - text: 17 mph
+        - generic [ref=e256]:
+          - generic [ref=e257]: 
+          - text: 18%
+        - generic [ref=e258]: 1.0ft
+      - generic [ref=e259]:
+        - generic [ref=e260]: 11 PM
+        - generic [ref=e261]:
+          - generic [ref=e262]: 
+          - text: 64°F
+        - generic [ref=e263]:
+          - generic [ref=e264]: 
+          - text: 18 mph
+        - generic [ref=e265]:
+          - generic [ref=e266]: 
+          - text: 44%
+        - generic [ref=e267]: 1.0ft
+  - generic [ref=e277]:
+    - generic:
+      - generic [ref=e278]:
+        - button "Zoom in" [ref=e279] [cursor=pointer]: +
+        - button "Zoom out" [ref=e280] [cursor=pointer]: −
+      - generic [ref=e281]:
+        - link "Leaflet" [ref=e282] [cursor=pointer]:
+          - /url: https://leafletjs.com
+          - img [ref=e283]
+          - text: Leaflet
+        - text: "| ©"
+        - link "OpenStreetMap" [ref=e287] [cursor=pointer]:
+          - /url: https://www.openstreetmap.org/copyright
+        - text: contributors, NWS
+  - paragraph [ref=e289]: This application has been optimized for marine forecasting, but boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.
+```
