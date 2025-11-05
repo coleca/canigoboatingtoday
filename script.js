@@ -12,7 +12,7 @@ function hideLoader() {
 }
 
 // --- INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', () => {
     // Event listener for the location search form
     const locationForm = document.getElementById('location-form');
     locationForm.addEventListener('submit', (e) => {
@@ -543,7 +543,6 @@ function displayHourlyCharts(timeData, windData, precipitationData, temperatureD
         const tideOptions = getCommonOptions('Tide (ft MLLW)');
         tideOptions.plugins.annotation = { annotations: { sunrise: getAnnotationOptions(alignedTideData, sunriseIcon, sunriseIndex), sunset: getAnnotationOptions(alignedTideData, sunsetIcon, sunsetIndex) }};
         tideChart = new Chart(tideChartElement.getContext('2d'), { type: 'line', data: { labels, datasets: [{ label: 'Tide', data: alignedTideData, borderColor: 'rgba(153, 102, 255, 0.8)', backgroundColor: 'rgba(153, 102, 255, 0.2)', fill: true, tension: 0.4 }] }, options: tideOptions });
-        tideChart.waitFor('complete');
     } else {
         tideChartElement.parentElement.style.display = 'none';
         tideDisclaimer.style.display = 'none';
