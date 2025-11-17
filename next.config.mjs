@@ -3,7 +3,12 @@ import withPWA from 'next-pwa'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Any standard Next.js config options can go here
+  // Enable static export for deployment to GitHub Pages
+  output: 'export',
+  // Disable image optimization, as it's not compatible with static export
+  images: {
+    unoptimized: true,
+  },
 }
 
 // Configuration for the PWA plugin
