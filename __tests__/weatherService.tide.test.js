@@ -62,7 +62,10 @@ describe('weatherService - Tide Data', () => {
 
     const tideData = await getTideData(latitude, longitude)
 
-    expect(tideData).toEqual(mockTidePredictions)
+    expect(tideData).toEqual({
+      ...mockTidePredictions,
+      station: expect.objectContaining({ id: '2', name: 'Closest Station' }),
+    })
     // Expect the station list to be cached
     expect(localStorage.setItem).toHaveBeenCalledWith('tideStations', expect.any(String))
     // Expect haversine to be called for each station
@@ -87,7 +90,10 @@ describe('weatherService - Tide Data', () => {
 
     const tideData = await getTideData(latitude, longitude)
 
-    expect(tideData).toEqual(mockTidePredictions)
+    expect(tideData).toEqual({
+      ...mockTidePredictions,
+      station: expect.objectContaining({ id: '2', name: 'Closest Station' }),
+    })
     // fetch should have only been called once (for the tide data)
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(getHaversineDistance).toHaveBeenCalledTimes(3)

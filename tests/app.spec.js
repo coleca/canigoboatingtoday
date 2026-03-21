@@ -7,7 +7,7 @@ test.describe('Boating Forecast App - E2E', () => {
     await page.goto('/')
 
     // Wait for the main heading to be visible, indicating the app has loaded
-    await expect(page.locator('h1')).toHaveText('Boating Forecast')
+    await expect(page.locator('h1')).toHaveText('Can I go boating today?')
 
     // 1. Verify Location Display
     // Check that the latitude and longitude are displayed, confirming geolocation worked.
@@ -17,7 +17,7 @@ test.describe('Boating Forecast App - E2E', () => {
     // 2. Verify Current Conditions
     // Check for the "Current Conditions" heading and that a forecast period (e.g., "Tonight") is visible.
     await expect(page.getByRole('heading', { name: 'Current Conditions' })).toBeVisible()
-    await expect(page.getByText(/Tonight|Today|This Afternoon/)).toBeVisible()
+    await expect(page.locator('div').filter({ has: page.getByRole('heading', { name: 'Current Conditions' }) }).getByText(/Tonight:|Today:|This Afternoon:/)).toBeVisible()
 
     // 3. Verify Wave Forecast
     // Check that the wave forecast component has rendered and displays some value (even "N/A").
@@ -25,7 +25,7 @@ test.describe('Boating Forecast App - E2E', () => {
     await expect(page.getByText(/Current Wave Height:/)).toBeVisible()
 
     // 4. Verify Tide Chart
-    // The chart is rendered in a canvas. We'll check that its title is visible.
+    // The chart area or fallback message should render.
     await expect(page.getByText("Today's Tide Predictions")).toBeVisible()
 
     // 5. Verify Radar Map

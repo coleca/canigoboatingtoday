@@ -1,75 +1,89 @@
-# Boating Forecast PWA
+# Can I Go Boating Today?
 
-A modern, production-ready Progressive Web App (PWA) that provides boaters with a comprehensive and easy-to-understand weather forecast, designed to be deployed on static site hosting platforms like GitHub Pages.
+A U.S.-focused boating forecast Progressive Web App built with Next.js. The app uses National Weather Service forecast data, NOAA tide predictions, and a NOAA radar overlay to help boaters quickly review local conditions.
 
-This project was built from the ground up based on a detailed technical design, following a rigorous test-driven development (TDD) methodology.
+## What It Does
 
-## Key Features
+- Uses the browser's current location when available.
+- Falls back to manual U.S. location search when geolocation is unavailable or denied.
+- Displays the current NWS forecast summary, wave text extracted from the forecast, NOAA tide predictions, and a live radar map.
+- Works as a PWA with a manifest and generated service worker files under `public/`.
+- Caches the NOAA tide-station metadata list in `localStorage` to reduce repeated downloads.
 
--   **Dynamic & Location-Aware:** Automatically fetches data from NWS and NOAA APIs based on the user's current GPS location.
--   **Comprehensive Forecasts:** Displays current weather conditions, a graphical tide chart, parsed wave height data, and a live weather radar map.
--   **Progressive Web App:** Fully installable on iOS and Android with offline support, thanks to a manifest and service worker configuration.
--   **Modern Stack:** Built with Next.js, React, and styled with Tailwind CSS.
--   **Fully Tested:** Includes a comprehensive three-tiered test suite (unit, integration, and E2E) with Jest, React Testing Library, and Playwright.
--   **Performance Optimized:** Uses client-side caching for the large NOAA tide station list to ensure a fast experience on repeat visits.
+## Project Structure
 
-## Project Documentation
+- [app/page.js](./app/page.js): top-level route that renders the dashboard shell.
+- [components/WeatherDashboard.js](./components/WeatherDashboard.js): main client component for location selection, loading state, and orchestration.
+- [components/TideChart.js](./components/TideChart.js): Chart.js wrapper for tide predictions.
+- [components/WaveForecast.js](./components/WaveForecast.js): parses and displays wave height text from the NWS forecast.
+- [components/RadarMap.js](./components/RadarMap.js): Leaflet map with NOAA radar WMS overlay.
+- [lib/weatherService.js](./lib/weatherService.js): client-side API calls for NWS forecast, NOAA tides, and U.S. location search.
+- [ARCHITECTURE.md](./ARCHITECTURE.md): system-level architecture and data-flow notes.
 
-For a deeper understanding of the project's architecture and deployment, please refer to the following documents:
-
--   **[Technical Design Document](./TECHNICAL_DESIGN.md):** The blueprint for the application's architecture, component design, and data flow.
--   **[Deployment Guide](./DEPLOYMENT.md):** Step-by-step instructions for deploying the application to GitHub Pages.
--   **[Agent Guidelines](./AGENTS.md):** The development standards and testing procedures followed during the project's construction.
-
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
--   Node.js (v20.x or later)
--   npm
+- Node.js 20 or newer
+- npm 10 or newer
 
-### Local Development
+### Install Dependencies
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd <repository-directory>
-    ```
+```bash
+npm install
+```
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+That command installs both runtime and test dependencies from `package.json`, including:
 
-3.  **Run the development server:**
-    ```bash
-    npm run dev
-    ```
+- `jest` and `@testing-library/*` for unit/component tests
+- `@playwright/test` for end-to-end tests
 
-    Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Install Playwright Browsers
+
+Playwright also needs browser binaries the first time you set it up:
+
+```bash
+npx playwright install
+```
+
+If your machine is missing OS-level browser dependencies, Playwright will tell you what to install. On CI or a brand-new machine, you can also use:
+
+```bash
+npx playwright install --with-deps
+```
+
+### Run the App
+
+```bash
+npm run dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
 
 ## Testing
 
-This project uses a three-tiered testing strategy.
-
-### 1. Unit & Integration Tests
-
-These tests use **Jest** and **React Testing Library**. They cover individual functions and component interactions.
-
-To run these tests:
+### Unit and Component Tests
 
 ```bash
-npm test
+npm test -- --runInBand
 ```
 
-### 2. End-to-End (E2E) Tests
+If you see `jest: command not found`, dependencies have not been installed yet. Run `npm install` first.
 
-These tests use **Playwright** to simulate a full user journey in a real browser. They verify the application from end to end.
-
-To run these tests:
+### End-to-End Tests
 
 ```bash
 npm run test:e2e
 ```
 
-**Note:** The E2E tests will automatically build and start the application server.
+If Playwright reports that browsers are missing, run:
+
+```bash
+npx playwright install
+```
+
+## Notes
+
+- NOAA and NWS APIs are called directly from the browser, so the app needs network access for live forecast data.
+- Tide data is treated as optional. If no nearby tide station is found, the rest of the dashboard still loads.
+- The app currently focuses on forecast, tide, wave-text, and radar behavior. See [ARCHITECTURE.md](./ARCHITECTURE.md) for details and future expansion paths.

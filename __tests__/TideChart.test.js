@@ -29,10 +29,10 @@ describe('TideChart', () => {
   test('does not throw an error with empty or missing tide data', () => {
     // Render the component with no props, which should result in empty `predictions`
     const { rerender } = render(<TideChart />)
-    expect(screen.getByRole('img')).toBeInTheDocument()
+    expect(screen.getByText(/Tide predictions are unavailable/)).toBeInTheDocument()
 
     // Rerender with an empty predictions array
     rerender(<TideChart tideData={{ predictions: [] }} />)
-    expect(screen.getByRole('img')).toBeInTheDocument()
+    expect(screen.getByText(/Tide predictions are unavailable/)).toBeInTheDocument()
   })
 })

@@ -47,12 +47,12 @@ describe('weatherService', () => {
       // Verify fetch was called correctly for the first (points) request
       expect(fetch).toHaveBeenCalledWith(
         `https://api.weather.gov/points/${latitude},${longitude}`,
-        { headers: { 'User-Agent': expect.any(String) } }
+        { headers: { Accept: 'application/geo+json' } }
       )
 
       // Verify fetch was called correctly for the second (forecast) request
       expect(fetch).toHaveBeenCalledWith(mockPointsData.properties.forecast, {
-        headers: { 'User-Agent': expect.any(String) },
+        headers: { Accept: 'application/geo+json' },
       })
     })
 
