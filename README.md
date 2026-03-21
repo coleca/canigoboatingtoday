@@ -1,44 +1,75 @@
-# Can I go boating today?
+# Boating Forecast PWA
 
-This is a simple web application designed to help users determine if it's a good day to go boating. It provides a comprehensive 8-day weather forecast, an hourly forecast with boating-specific information, and an embedded weather radar map.
+A modern, production-ready Progressive Web App (PWA) that provides boaters with a comprehensive and easy-to-understand weather forecast, designed to be deployed on static site hosting platforms like GitHub Pages.
 
-## Features
+This project was built from the ground up based on a detailed technical design, following a rigorous test-driven development (TDD) methodology.
 
-*   **Severe Weather Alerts**: Displays any active severe weather alerts from the US National Weather Service, color-coded by severity (Warning, Watch, Advisory).
-*   **8-Day Weather Forecast**: Displays a detailed 8-day forecast with weather descriptions. On mobile, the forecast uses CSS scroll-snap for a clean, user-friendly horizontal scrolling experience.
-*   **Customizable "Good Boating Day" Indicator**: Quickly see if it's a good day for boating. Users can click the settings icon to customize the thresholds for wind, precipitation, and temperature to match their preferences.
-*   **Synchronized Hourly Charts**: Four interactive line charts display hourly wind speed, precipitation probability, temperature, and tide levels. The charts are synchronized, and sunrise/sunset are marked with icons directly on each chart's data line.
-*   **Human-Readable Location**: When using geolocation, the application uses reverse geocoding to display a user-friendly location name (e.g., "San Francisco, California") instead of just "Current Location."
-*   **Loading Indicator**: A loading spinner is displayed while weather data is being fetched to provide better user feedback.
-*   **Embedded Radar Map**: An interactive weather radar map from `meteoblue.com` is embedded at the bottom of the page.
+## Key Features
 
-## Data Sources
+-   **Dynamic & Location-Aware:** Automatically fetches data from NWS and NOAA APIs based on the user's current GPS location.
+-   **Comprehensive Forecasts:** Displays current weather conditions, a graphical tide chart, parsed wave height data, and a live weather radar map.
+-   **Progressive Web App:** Fully installable on iOS and Android with offline support, thanks to a manifest and service worker configuration.
+-   **Modern Stack:** Built with Next.js, React, and styled with Tailwind CSS.
+-   **Fully Tested:** Includes a comprehensive three-tiered test suite (unit, integration, and E2E) with Jest, React Testing Library, and Playwright.
+-   **Performance Optimized:** Uses client-side caching for the large NOAA tide station list to ensure a fast experience on repeat visits.
 
-This project utilizes several free data sources to provide a comprehensive weather overview:
+## Project Documentation
 
-*   **Open-Meteo API**: The primary source for the main weather forecast data (temperature, wind, etc.).
-*   **US National Weather Service API**: Provides severe weather alerts for US locations.
-*   **BigDataCloud API**: Used for free, fast reverse geocoding to convert coordinates into a human-readable location name.
-*   **meteoblue Weather Maps Widget**: Provides the embedded weather radar map.
-*   **weather-icons**: A font and CSS library used for the weather-themed icons in the application.
+For a deeper understanding of the project's architecture and deployment, please refer to the following documents:
 
-## Technologies Used
+-   **[Technical Design Document](./TECHNICAL_DESIGN.md):** The blueprint for the application's architecture, component design, and data flow.
+-   **[Deployment Guide](./DEPLOYMENT.md):** Step-by-step instructions for deploying the application to GitHub Pages.
+-   **[Agent Guidelines](./AGENTS.md):** The development standards and testing procedures followed during the project's construction.
 
-*   **HTML5**: The structure of the web application.
-*   **CSS3**: Used for styling the application, including a colorful and friendly "boating" theme with a responsive layout.
-*   **JavaScript (ES6+)**: Powers the application's logic, including API calls, data processing, and dynamic content generation.
-*   **Chart.js**: Used to create the interactive tide chart.
-*   **chartjs-plugin-annotation**: A plugin for Chart.js used to add the sunrise/sunset icons to the charts.
-*   **Playwright**: Used for automated end-to-end testing and verification of the application's features and design.
+## Getting Started
 
-## How to Use
+### Prerequisites
 
-1.  Clone the repository to your local machine.
-2.  Open the `index.html` file in your web browser.
-3.  The application will request your location to provide a local forecast. If you deny the request or if geolocation is unavailable, the forecast for New York will be displayed.
-4.  Click on any day in the weekly forecast to view the detailed hourly forecast for that day.
-5.  Scroll down to view the embedded weather radar map.
+-   Node.js (v20.x or later)
+-   npm
 
-## Disclaimer
+### Local Development
 
-The weather and tide data provided by this application are for informational purposes only and should not be used for navigation or other critical applications. Always consult official sources for the most accurate and up-to-date information.
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd <repository-directory>
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+
+    Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## Testing
+
+This project uses a three-tiered testing strategy.
+
+### 1. Unit & Integration Tests
+
+These tests use **Jest** and **React Testing Library**. They cover individual functions and component interactions.
+
+To run these tests:
+
+```bash
+npm test
+```
+
+### 2. End-to-End (E2E) Tests
+
+These tests use **Playwright** to simulate a full user journey in a real browser. They verify the application from end to end.
+
+To run these tests:
+
+```bash
+npm run test:e2e
+```
+
+**Note:** The E2E tests will automatically build and start the application server.
