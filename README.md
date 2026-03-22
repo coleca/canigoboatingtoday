@@ -24,8 +24,20 @@ A U.S.-focused boating forecast Progressive Web App built with Next.js. The app 
 
 ### Prerequisites
 
-- Node.js 20 or newer
-- npm 10 or newer
+- Node.js `25.8.1`
+- npm `11.11.0` or newer
+- `nvm` recommended
+
+### Use the Pinned Node Version
+
+This repo includes an [.nvmrc](./.nvmrc) file pinned to Node `25.8.1`.
+
+If you use `nvm`, run:
+
+```bash
+nvm install
+nvm use
+```
 
 ### Install Dependencies
 
