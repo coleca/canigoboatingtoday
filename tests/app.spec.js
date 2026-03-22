@@ -3,6 +3,66 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Boating Forecast App - E2E', () => {
   test('should load and display a complete weather forecast', async ({ page }) => {
+    await page.route('**/api/forecast**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          forecast: {
+            periods: [
+              {
+                number: 1,
+                name: 'Today',
+                isDaytime: true,
+                temperature: 72,
+                temperatureUnit: 'F',
+                windSpeed: '10 mph',
+                shortForecast: 'Sunny',
+                detailedForecast: 'Sunny skies.',
+                probabilityOfPrecipitation: { value: 10 },
+              },
+              {
+                number: 2,
+                name: 'Tonight',
+                isDaytime: false,
+                temperature: 58,
+                temperatureUnit: 'F',
+                windSpeed: '6 mph',
+                shortForecast: 'Clear',
+                detailedForecast: 'Clear overnight.',
+                probabilityOfPrecipitation: { value: 0 },
+              },
+            ],
+          },
+          hourly: {
+            periods: [
+              {
+                number: 1,
+                startTime: '2026-03-21T10:00:00-04:00',
+                temperature: 71,
+                temperatureUnit: 'F',
+                windSpeed: '9 mph',
+                shortForecast: 'Sunny',
+              },
+            ],
+          },
+          alerts: [],
+          meta: { city: 'Los Angeles', state: 'CA' },
+        }),
+      })
+    })
+
+    await page.route('**/api/tides**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          predictions: [{ t: '2026-03-21 12:00', v: '3.5' }],
+          station: { id: '2', name: 'Closest Station' },
+        }),
+      })
+    })
+
     // Navigate to the home page
     await page.goto('/')
 
@@ -14,24 +74,16 @@ test.describe('Boating Forecast App - E2E', () => {
     await expect(page.getByText(/Latitude: 34.0522/)).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(/Longitude: -118.2437/)).toBeVisible()
 
-    // 2. Verify Current Conditions
-    // Check for the "Current Conditions" heading and that a forecast period (e.g., "Tonight") is visible.
-    await expect(page.getByRole('heading', { name: 'Current Conditions' })).toBeVisible()
-    await expect(page.locator('div').filter({ has: page.getByRole('heading', { name: 'Current Conditions' }) }).getByText(/Tonight:|Today:|This Afternoon:/)).toBeVisible()
+    await expect(page.getByText('Los Angeles, CA')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Pick a day to inspect conditions' })).toBeVisible()
+    await expect(page.getByText('Sunny skies.')).toBeVisible()
 
-    // 3. Verify Wave Forecast
-    // Check that the wave forecast component has rendered and displays some value (even "N/A").
     await expect(page.getByRole('heading', { name: 'Wave Forecast' })).toBeVisible()
     await expect(page.getByText(/Current Wave Height:/)).toBeVisible()
 
-    // 4. Verify Tide Chart
-    // The chart area or fallback message should render.
     await expect(page.getByText("Today's Tide Predictions")).toBeVisible()
 
-    // 5. Verify Radar Map
-    // Check for the "Weather Radar" heading and that the map container is present.
     await expect(page.getByRole('heading', { name: 'Weather Radar' })).toBeVisible()
-    // The map itself is in a specific container, let's check for the attribution text as a sign it's loaded.
     await expect(page.getByText(/OpenStreetMap/)).toBeVisible()
   })
 })

@@ -1,98 +1,66 @@
-import { getNWSForecast } from '@/lib/weatherService'
+import { getNWSForecast, getTideData, searchLocation } from '@/lib/weatherService'
 
-// Mock the global fetch function before all tests
 global.fetch = jest.fn()
 
 describe('weatherService', () => {
-  // Clear all mock implementations and call counts before each test
   beforeEach(() => {
     fetch.mockClear()
-    window.localStorage.clear()
   })
 
-  describe('getNWSForecast', () => {
-    const latitude = 34.0522
-    const longitude = -118.2437
-
-    // Mock data for a successful NWS API response chain
-    const mockPointsData = {
-      properties: {
-        forecast: 'https://api.weather.gov/gridpoints/LOX/15,33/forecast',
-      },
-    }
-    const mockForecastData = {
-      properties: {
-        periods: [{ name: 'Today', detailedForecast: 'Sunny.' }],
-      },
-    }
-
-    test('successfully fetches and returns forecast data', async () => {
-      // Set up the mock chain for fetch
-      fetch
-        // First call for gridpoints
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        // Second call for the actual forecast
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockForecastData,
-        })
-
-      const forecast = await getNWSForecast(latitude, longitude)
-
-      // Expect the final forecast properties to be returned
-      expect(forecast).toEqual(mockForecastData.properties)
-
-      // Verify fetch was called correctly for the first (points) request
-      expect(fetch).toHaveBeenCalledWith(
-        `https://api.weather.gov/points/${latitude},${longitude}`,
-        expect.objectContaining({
-          headers: { Accept: 'application/geo+json' },
-          signal: expect.any(AbortSignal),
-        })
-      )
-
-      // Verify fetch was called correctly for the second (forecast) request
-      expect(fetch).toHaveBeenCalledWith(
-        mockPointsData.properties.forecast,
-        expect.objectContaining({
-          headers: { Accept: 'application/geo+json' },
-          signal: expect.any(AbortSignal),
-        })
-      )
+  test('getNWSForecast calls the internal forecast endpoint', async () => {
+    const payload = { forecast: { periods: [] }, hourly: { periods: [] }, alerts: [] }
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => payload,
     })
 
-    test('throws an error if the points API request fails', async () => {
-      // Simulate a failed response from the points API
-      fetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Not Found',
-      })
+    const result = await getNWSForecast(34.0522, -118.2437)
 
-      // Expect the function to reject with an error
-      await expect(getNWSForecast(latitude, longitude)).rejects.toThrow(
-        'NWS points API request failed: Not Found'
-      )
+    expect(result).toEqual(payload)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/forecast?lat=34.0522&lon=-118.2437',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  test('getTideData calls the internal tides endpoint', async () => {
+    const payload = { predictions: [], station: null }
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => payload,
     })
 
-    test('throws an error if the forecast API request fails', async () => {
-      // Simulate a successful points request followed by a failed forecast request
-      fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          statusText: 'Internal Server Error',
-        })
+    const result = await getTideData(34.0522, -118.2437)
 
-      // Expect the function to reject with an error
-      await expect(getNWSForecast(latitude, longitude)).rejects.toThrow(
-        'NWS forecast API request failed: Internal Server Error'
-      )
+    expect(result).toEqual(payload)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/tides?lat=34.0522&lon=-118.2437',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  test('searchLocation calls the internal location endpoint', async () => {
+    const payload = { name: 'Annapolis, MD', latitude: 38.9784, longitude: -76.4922 }
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => payload,
     })
+
+    const result = await searchLocation('Annapolis, MD')
+
+    expect(result).toEqual(payload)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/location?q=Annapolis%2C%20MD',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  test('throws a friendly error when an internal request fails', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'Forecast unavailable.' }),
+    })
+
+    await expect(getNWSForecast(1, 2)).rejects.toThrow('Forecast unavailable.')
   })
 })

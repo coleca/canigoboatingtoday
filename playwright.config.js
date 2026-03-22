@@ -10,7 +10,7 @@ export default defineConfig({
   reporter: 'html',
 
   webServer: {
-    command: 'npm run build && npx serve@latest out -l 3000',
+    command: 'npm run build && npm run start -- --hostname 127.0.0.1 --port 3000',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 300 * 1000, // 5 minutes

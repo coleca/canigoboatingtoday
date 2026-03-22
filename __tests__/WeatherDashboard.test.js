@@ -37,7 +37,46 @@ describe('WeatherDashboard', () => {
 
     // Mock successful API responses for both services
     const mockWeatherData = {
-      periods: [{ name: 'Today', detailedForecast: 'Sunny skies.' }],
+      forecast: {
+        periods: [
+          {
+            number: 1,
+            name: 'Today',
+            isDaytime: true,
+            temperature: 72,
+            temperatureUnit: 'F',
+            windSpeed: '10 mph',
+            shortForecast: 'Sunny',
+            detailedForecast: 'Sunny skies.',
+            probabilityOfPrecipitation: { value: 10 },
+          },
+          {
+            number: 2,
+            name: 'Tonight',
+            isDaytime: false,
+            temperature: 58,
+            temperatureUnit: 'F',
+            windSpeed: '5 mph',
+            shortForecast: 'Clear',
+            detailedForecast: 'Clear overnight.',
+            probabilityOfPrecipitation: { value: 0 },
+          },
+        ],
+      },
+      hourly: {
+        periods: [
+          {
+            number: 1,
+            temperature: 71,
+            temperatureUnit: 'F',
+            windSpeed: '9 mph',
+            shortForecast: 'Sunny',
+            startTime: '2026-03-21T10:00:00-04:00',
+          },
+        ],
+      },
+      alerts: [],
+      meta: { city: 'Los Angeles', state: 'CA' },
     }
     const mockTideData = {
       predictions: [{ t: '2025-11-17 12:00', v: '3.5' }],
@@ -51,8 +90,8 @@ describe('WeatherDashboard', () => {
     await waitFor(() => {
       // Verify all expected data is on the screen
       expect(screen.getByText(/Latitude: 34.0522/)).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'Current Conditions' })).toBeInTheDocument()
-      expect(screen.getByText('Today:')).toBeInTheDocument()
+      expect(screen.getByText('Los Angeles, CA')).toBeInTheDocument()
+      expect(screen.getAllByText('Today').length).toBeGreaterThan(0)
       expect(screen.getByText('Sunny skies.')).toBeInTheDocument()
       expect(screen.getByText(/Nearest station: Closest Station/)).toBeInTheDocument()
     })
@@ -92,14 +131,31 @@ describe('WeatherDashboard', () => {
       longitude: -76.4922,
     })
     getNWSForecast.mockResolvedValue({
-      periods: [{ name: 'Today', detailedForecast: 'Sunny skies.' }],
+      forecast: {
+        periods: [
+          {
+            number: 1,
+            name: 'Today',
+            isDaytime: true,
+            temperature: 65,
+            temperatureUnit: 'F',
+            windSpeed: '8 mph',
+            shortForecast: 'Sunny',
+            detailedForecast: 'Sunny skies.',
+            probabilityOfPrecipitation: { value: 10 },
+          },
+        ],
+      },
+      hourly: { periods: [] },
+      alerts: [],
+      meta: { city: 'Annapolis', state: 'MD' },
     })
     getTideData.mockResolvedValue({ predictions: [] })
 
     render(<WeatherDashboard />)
 
     await waitFor(() => {
-      expect(screen.getByText('Annapolis, MD')).toBeInTheDocument()
+      expect(screen.getAllByText('Annapolis, MD').length).toBeGreaterThan(0)
     })
   })
 })
