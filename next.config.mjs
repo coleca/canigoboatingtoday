@@ -1,11 +1,18 @@
 // next.config.mjs
+import fs from 'node:fs'
+import path from 'node:path'
 import withPWA from 'next-pwa'
 
 const isGitHubActions = process.env.GITHUB_ACTIONS === 'true'
 const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? ''
 const isUserOrOrgPagesSite = repositoryName === `${process.env.GITHUB_REPOSITORY_OWNER}.github.io`
+const hasCustomDomain =
+  fs.existsSync(path.join(process.cwd(), 'CNAME')) ||
+  fs.existsSync(path.join(process.cwd(), 'public', 'CNAME'))
 const projectBasePath =
-  isGitHubActions && repositoryName && !isUserOrOrgPagesSite ? `/${repositoryName}` : ''
+  isGitHubActions && repositoryName && !isUserOrOrgPagesSite && !hasCustomDomain
+    ? `/${repositoryName}`
+    : ''
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
