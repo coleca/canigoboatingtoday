@@ -7,6 +7,7 @@ describe('weatherService', () => {
   // Clear all mock implementations and call counts before each test
   beforeEach(() => {
     fetch.mockClear()
+    window.localStorage.clear()
   })
 
   describe('getNWSForecast', () => {
@@ -47,13 +48,20 @@ describe('weatherService', () => {
       // Verify fetch was called correctly for the first (points) request
       expect(fetch).toHaveBeenCalledWith(
         `https://api.weather.gov/points/${latitude},${longitude}`,
-        { headers: { Accept: 'application/geo+json' } }
+        expect.objectContaining({
+          headers: { Accept: 'application/geo+json' },
+          signal: expect.any(AbortSignal),
+        })
       )
 
       // Verify fetch was called correctly for the second (forecast) request
-      expect(fetch).toHaveBeenCalledWith(mockPointsData.properties.forecast, {
-        headers: { Accept: 'application/geo+json' },
-      })
+      expect(fetch).toHaveBeenCalledWith(
+        mockPointsData.properties.forecast,
+        expect.objectContaining({
+          headers: { Accept: 'application/geo+json' },
+          signal: expect.any(AbortSignal),
+        })
+      )
     })
 
     test('throws an error if the points API request fails', async () => {

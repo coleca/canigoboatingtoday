@@ -29,7 +29,7 @@ ChartJS.register(
  * @param {{tideData: object}} props - The component props.
  * @param {object} props.tideData - The raw tide prediction data from the NOAA API.
  */
-export default function TideChart({ tideData }) {
+export default function TideChart({ tideData, tideLoading = false }) {
   // The API returns an object with a 'predictions' array
   const predictions = tideData?.predictions || []
   const stationName = tideData?.station?.name
@@ -79,13 +79,25 @@ export default function TideChart({ tideData }) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-2xl font-semibold">Today&apos;s Tide Predictions</h2>
-        {stationName && <p className="text-sm text-slate-600">Nearest station: {stationName}</p>}
+    <div className="rounded-[28px] border border-white/25 bg-white/72 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.14)] backdrop-blur">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-700">Marine forecast</p>
+          <h2 className="text-3xl font-bold text-slate-950">Today&apos;s Tide Predictions</h2>
+        </div>
+        {stationName && (
+          <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-600">
+            Nearest station: {stationName}
+          </p>
+        )}
       </div>
+      {tideLoading && (
+        <p className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-800">
+          Loading tide predictions in the background...
+        </p>
+      )}
       {predictions.length === 0 ? (
-        <p className="rounded-lg bg-slate-50 p-4 text-slate-600">
+        <p className="rounded-2xl bg-slate-50 p-4 text-slate-600">
           Tide predictions are unavailable for this area right now. Forecast and radar data are still available.
         </p>
       ) : (

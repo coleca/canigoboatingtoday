@@ -18,6 +18,7 @@ beforeAll(() => {
 describe('WeatherDashboard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    window.localStorage.clear()
   })
 
   test('displays loading state initially', () => {
@@ -50,6 +51,7 @@ describe('WeatherDashboard', () => {
     await waitFor(() => {
       // Verify all expected data is on the screen
       expect(screen.getByText(/Latitude: 34.0522/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Current Conditions' })).toBeInTheDocument()
       expect(screen.getByText('Today:')).toBeInTheDocument()
       expect(screen.getByText('Sunny skies.')).toBeInTheDocument()
       expect(screen.getByText(/Nearest station: Closest Station/)).toBeInTheDocument()

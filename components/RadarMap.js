@@ -20,9 +20,12 @@ function RadarMap({ location }) {
   const position = [location.latitude, location.longitude]
 
   return (
-    <div className="p-4 border rounded-lg bg-white shadow-md">
-      <h2 className="text-2xl font-semibold mb-4">Weather Radar</h2>
-      <div style={{ height: '500px', width: '100%' }}>
+    <div className="rounded-[28px] border border-white/25 bg-white/72 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.14)] backdrop-blur">
+      <div className="mb-5 space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-700">Live observations</p>
+        <h2 className="text-3xl font-bold text-slate-950">Weather Radar</h2>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200" style={{ height: '500px', width: '100%' }}>
         <MapContainer center={position} zoom={8} style={{ height: '100%', width: '100%' }}>
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
