@@ -1,12 +1,12 @@
 # Can I Go Boating Today?
 
-A U.S.-focused boating forecast Progressive Web App built with Next.js. The app uses National Weather Service forecast data, NOAA tide predictions, and a NOAA radar overlay to help boaters quickly review local conditions.
+A U.S.-focused boating forecast Progressive Web App built with Next.js. The app uses server-side proxy routes for National Weather Service forecast data, NOAA tide predictions, and U.S. Census geocoding so live forecast loading works reliably on Vercel.
 
 ## What It Does
 
 - Uses the browser's current location when available.
 - Falls back to manual U.S. location search when geolocation is unavailable or denied.
-- Displays the current NWS forecast summary, wave text extracted from the forecast, NOAA tide predictions, and a live radar map.
+- Displays a seven-day boating outlook, selected-day details, hourly outlook, NOAA tide predictions, alerts, and a live radar map.
 - Works as a PWA with a manifest and generated service worker files under `public/`.
 - Caches the NOAA tide-station metadata list in `localStorage` to reduce repeated downloads.
 
@@ -17,20 +17,23 @@ A U.S.-focused boating forecast Progressive Web App built with Next.js. The app 
 - [components/TideChart.js](./components/TideChart.js): Chart.js wrapper for tide predictions.
 - [components/WaveForecast.js](./components/WaveForecast.js): parses and displays wave height text from the NWS forecast.
 - [components/RadarMap.js](./components/RadarMap.js): Leaflet map with NOAA radar WMS overlay.
-- [lib/weatherService.js](./lib/weatherService.js): client-side API calls for NWS forecast, NOAA tides, and U.S. location search.
+- [app/api/forecast/route.js](./app/api/forecast/route.js): server route that proxies NWS forecast and alert data.
+- [app/api/location/route.js](./app/api/location/route.js): server route that proxies U.S. Census geocoding.
+- [app/api/tides/route.js](./app/api/tides/route.js): server route that proxies NOAA tide metadata and predictions.
+- [lib/weatherService.js](./lib/weatherService.js): client helpers that call the internal app routes.
 - [ARCHITECTURE.md](./ARCHITECTURE.md): system-level architecture and data-flow notes.
 
 ## Local Development
 
 ### Prerequisites
 
-- Node.js `25.8.1`
+- Node.js `24.x`
 - npm `11.11.0` or newer
 - `nvm` recommended
 
 ### Use the Pinned Node Version
 
-This repo includes an [.nvmrc](./.nvmrc) file pinned to Node `25.8.1`.
+This repo includes an [.nvmrc](./.nvmrc) file pinned to Node `24`.
 
 If you use `nvm`, run:
 
@@ -96,6 +99,6 @@ npx playwright install
 
 ## Notes
 
-- NOAA and NWS APIs are called directly from the browser, so the app needs network access for live forecast data.
+- This app is now intended for Vercel or another server-capable Next.js host. GitHub Pages is no longer the production target.
 - Tide data is treated as optional. If no nearby tide station is found, the rest of the dashboard still loads.
-- The app currently focuses on forecast, tide, wave-text, and radar behavior. See [ARCHITECTURE.md](./ARCHITECTURE.md) for details and future expansion paths.
+- See [DEPLOYMENT.md](./DEPLOYMENT.md) for the Vercel deployment path and [ARCHITECTURE.md](./ARCHITECTURE.md) for data-flow notes.

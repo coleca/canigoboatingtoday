@@ -1,51 +1,67 @@
 # Deployment Guide
 
-## GitHub Pages
+## Vercel
 
-This repo is configured to deploy as a static Next.js export to GitHub Pages.
+This repo is now intended to deploy on Vercel, not GitHub Pages.
 
-### What Is Already Configured
+### Why
 
-- [`next.config.mjs`](./next.config.mjs) uses `output: 'export'`
-- the GitHub Actions workflow at [`.github/workflows/nextjs.yml`](./.github/workflows/nextjs.yml) builds and uploads `./out`
-- `basePath` and `assetPrefix` are computed automatically during GitHub Actions builds from `GITHUB_REPOSITORY`
-- the manifest uses relative URLs so it works under a project-site path like `/canigoboatingtoday`
+The app uses Next.js route handlers for:
 
-### How the Base Path Works
+- `app/api/forecast/route.js`
+- `app/api/location/route.js`
+- `app/api/tides/route.js`
 
-On GitHub Actions:
+Those server routes proxy NOAA/NWS/Census requests so the browser does not have to call those upstream APIs directly.
 
-- if the repo is a project site such as `username/canigoboatingtoday`, the app builds with `basePath=/canigoboatingtoday`
-- if the repo is a user/org site such as `username/username.github.io`, no base path is added
+### Required Runtime
 
-Locally, no base path is used, so development remains at `http://localhost:3000/`.
+- Node.js `24.x`
 
-### Required GitHub Setting
+The repo is pinned to that version in:
 
-In your GitHub repository:
+- [.nvmrc](./.nvmrc)
+- [package.json](./package.json)
 
-1. Open `Settings`
-2. Open `Pages`
-3. Under `Build and deployment`, set `Source` to `GitHub Actions`
+### Vercel Settings
 
-### Deployment Trigger
+Vercel should auto-detect this as a Next.js app. The defaults are correct:
 
-The Pages workflow runs on:
+- Framework Preset: `Next.js`
+- Build Command: `npm run build`
+- Install Command: `npm install`
 
-- pushes to `main`
-- manual dispatch from the Actions tab
+You should not configure this project as a static export.
+
+### Custom Domain
+
+After the first successful deploy:
+
+1. Open the project in Vercel
+2. Go to `Settings`
+3. Go to `Domains`
+4. Add `canigoboatingtoday.com`
+5. Update your DNS records to the values Vercel gives you
 
 ### Local Verification
 
-Build the static export locally:
+Use Node `24` locally if possible:
 
 ```bash
+nvm install
+nvm use
+npm install
+npm test -- --runInBand
 npm run build
 ```
 
-The exported site will be written to `out/`.
+If you want to run the production server locally:
+
+```bash
+npm run start
+```
 
 ### Notes
 
-- The workflow intentionally does not use `actions/configure-pages` because this repo already manages Next.js static export behavior directly.
-- The Playwright config serves `out/` with a static server for E2E tests because `next start` does not work with `output: 'export'`.
+- The old GitHub Pages workflow is no longer part of the deployment path.
+- If a stale service worker exists in your browser from older deploys, unregister it after switching hosts.
