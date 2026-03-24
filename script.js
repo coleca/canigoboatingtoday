@@ -1,4 +1,9 @@
 let windChart, precipitationChart, temperatureChart, waveChart, tideChart, radarMap;
+// RainViewer variables
+let radarLayers = [];
+let radarTimestamps = [];
+let radarAnimationInterval = null;
+let currentRadarFrame = 0;
 // Store the raw data from the last successful API call
 let lastWeatherData = null;
 
@@ -613,11 +618,122 @@ function displayWeatherAlerts(alertData) {
 
 function displayRadarMap(lat, lon) {
     const radarContainer = document.getElementById('radar-map-container');
-    radarContainer.innerHTML = ''; radarContainer.style.height = '400px';
-    if (radarMap) radarMap.remove();
+    const controlsContainer = document.getElementById('radar-controls');
+    radarContainer.style.height = '400px';
+    controlsContainer.style.display = 'flex'; // show controls
+
+    // Stop any existing animation
+    if (radarAnimationInterval) {
+        clearInterval(radarAnimationInterval);
+        radarAnimationInterval = null;
+    }
+
+    if (radarMap) {
+        radarMap.remove();
+        radarLayers = [];
+        radarTimestamps = [];
+    }
+
     radarMap = L.map('radar-map-container').setView([lat, lon], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(radarMap);
-    L.tileLayer.wms('https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms', { layers: 'CREF', format: 'image/png', transparent: true, opacity: 0.8, time: new Date().toISOString(), attribution: 'NWS' }).addTo(radarMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(radarMap);
+
+    // Fetch RainViewer API data
+    fetch('https://api.rainviewer.com/public/weather-maps.json')
+        .then(res => res.json())
+        .then(apiData => {
+            const pastFrames = apiData.radar.past;
+            radarTimestamps = pastFrames;
+
+            // Setup slider
+            const slider = document.getElementById('radar-slider');
+            slider.max = pastFrames.length - 1;
+            slider.value = pastFrames.length - 1;
+
+            // Load tile layers
+            pastFrames.forEach((frame, index) => {
+                const layer = L.tileLayer(`${apiData.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`, {
+                    tileSize: 256,
+                    opacity: 0,
+                    zIndex: index
+                });
+                radarMap.addLayer(layer);
+                radarLayers.push(layer);
+            });
+
+            // Display latest frame
+            currentRadarFrame = pastFrames.length - 1;
+            showRadarFrame(currentRadarFrame);
+
+            setupRadarControls();
+        })
+        .catch(err => console.error("Error loading RainViewer API:", err));
+}
+
+function showRadarFrame(index) {
+    if (!radarLayers.length) return;
+
+    radarLayers.forEach((layer, i) => {
+        if (i === index) {
+            layer.setOpacity(0.8);
+        } else {
+            layer.setOpacity(0);
+        }
+    });
+
+    const timeSpan = document.getElementById('radar-time');
+    const slider = document.getElementById('radar-slider');
+
+    if (radarTimestamps[index]) {
+        const d = new Date(radarTimestamps[index].time * 1000);
+        timeSpan.innerText = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    slider.value = index;
+    currentRadarFrame = index;
+}
+
+function setupRadarControls() {
+    const playBtn = document.getElementById('radar-play-pause');
+    const slider = document.getElementById('radar-slider');
+
+    // Remove old event listeners if any
+    const newPlayBtn = playBtn.cloneNode(true);
+    playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+
+    const newSlider = slider.cloneNode(true);
+    slider.parentNode.replaceChild(newSlider, slider);
+
+    newPlayBtn.addEventListener('click', () => {
+        if (radarAnimationInterval) {
+            // Pause
+            clearInterval(radarAnimationInterval);
+            radarAnimationInterval = null;
+            newPlayBtn.innerText = 'Play';
+        } else {
+            // Play
+            if (currentRadarFrame >= radarTimestamps.length - 1) {
+                currentRadarFrame = 0;
+            }
+            newPlayBtn.innerText = 'Pause';
+            radarAnimationInterval = setInterval(() => {
+                currentRadarFrame++;
+                if (currentRadarFrame >= radarTimestamps.length) {
+                    currentRadarFrame = 0; // Loop back
+                }
+                showRadarFrame(currentRadarFrame);
+            }, 500); // 500ms per frame
+        }
+    });
+
+    newSlider.addEventListener('input', (e) => {
+        if (radarAnimationInterval) {
+            clearInterval(radarAnimationInterval);
+            radarAnimationInterval = null;
+            newPlayBtn.innerText = 'Play';
+        }
+        showRadarFrame(parseInt(e.target.value, 10));
+    });
 }
 
 // --- WEATHER LOGIC ---
