@@ -10,7 +10,7 @@ This is a simple web application designed to help users determine if it's a good
 *   **Synchronized Hourly Charts**: Four interactive line charts display hourly wind speed, precipitation probability, temperature, and tide levels. The charts are synchronized, and sunrise/sunset are marked with icons directly on each chart's data line.
 *   **Human-Readable Location**: When using geolocation, the application uses reverse geocoding to display a user-friendly location name (e.g., "San Francisco, California") instead of just "Current Location."
 *   **Loading Indicator**: A loading spinner is displayed while weather data is being fetched to provide better user feedback.
-*   **Embedded Radar Map**: An interactive weather radar map from `meteoblue.com` is embedded at the bottom of the page.
+*   **Embedded Radar Map**: An interactive weather radar map from `RainViewer API` is embedded at the bottom of the page.
 
 ## Data Sources
 
@@ -19,7 +19,7 @@ This project utilizes several free data sources to provide a comprehensive weath
 *   **Open-Meteo API**: The primary source for the main weather forecast data (temperature, wind, etc.).
 *   **US National Weather Service API**: Provides severe weather alerts for US locations.
 *   **BigDataCloud API**: Used for free, fast reverse geocoding to convert coordinates into a human-readable location name.
-*   **meteoblue Weather Maps Widget**: Provides the embedded weather radar map.
+*   **RainViewer Animated Radar Maps**: Provides the embedded weather radar map.
 *   **weather-icons**: A font and CSS library used for the weather-themed icons in the application.
 
 ## Technologies Used

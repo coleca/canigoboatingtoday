@@ -57,6 +57,11 @@
         <p class="tide-disclaimer" style="display: none;">Tide data from nearest station. Verify with official charts.</p>
     </div>
     <div id="radar-map-container" class="content-width"></div>
+    <div id="radar-controls" class="content-width" style="display: none;">
+        <button id="radar-play-pause" class="radar-btn">Play</button>
+        <input type="range" id="radar-slider" min="0" max="10" value="10" step="1">
+        <span id="radar-time">Loading...</span>
+    </div>
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
