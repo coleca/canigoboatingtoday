@@ -50,7 +50,14 @@ function transformNwsData(data) {
     }
 
     // Now process daily data, using the processed hourly data
-    Object.values(days).slice(0, 8).forEach(dayPeriods => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    Object.values(days).filter(dayPeriods => {
+        const d = new Date(dayPeriods[0].startTime);
+        d.setHours(0, 0, 0, 0);
+        return d >= today;
+    }).slice(0, 8).forEach(dayPeriods => {
         const firstPeriod = dayPeriods[0];
         const date = new Date(firstPeriod.startTime);
         const dateKey = date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -80,8 +87,13 @@ function transformOpenMeteoData(data) {
     const dailyData = [];
     const hourlyData = [];
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     data.daily.time.forEach((dateStr, i) => {
         const date = new Date(dateStr + 'T00:00');
+        if (date < today) return;
+
         dailyData.push({
             date,
             dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
