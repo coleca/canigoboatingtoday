@@ -39,7 +39,7 @@ export default function TideChart({ tideData }) {
 
   predictions.forEach((p) => {
     labels.push(
-      new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      new Date(p.t.replace(' ', 'T')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     )
     data.push(p.v)
   })
