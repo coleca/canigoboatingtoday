@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  turbopack: {},
 }
 
 // Configuration for the PWA plugin
