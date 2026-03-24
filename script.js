@@ -315,7 +315,11 @@ function transformNwsData(data) {
     }
 
     // Now, build dailyData and hourlyData based on the days available in hourlyDays
-    const sortedDateKeys = Object.keys(hourlyDays).sort((a, b) => new Date(a) - new Date(b));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let sortedDateKeys = Object.keys(hourlyDays).sort((a, b) => new Date(a) - new Date(b));
+    sortedDateKeys = sortedDateKeys.filter(dateKey => new Date(dateKey) >= today);
 
     sortedDateKeys.slice(0, 8).forEach(dateKey => {
         const dayHourlyData = hourlyDays[dateKey];
@@ -362,8 +366,13 @@ function transformOpenMeteoData(data) {
     const dailyData = [];
     const hourlyData = [];
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     data.daily.time.forEach((dateStr, i) => {
         const date = new Date(dateStr + 'T00:00');
+        if (date < today) return;
+
         dailyData.push({
             date,
             dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
