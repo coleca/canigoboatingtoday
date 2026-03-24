@@ -34,12 +34,22 @@ export default function TideChart({ tideData }) {
   const predictions = tideData?.predictions || []
 
   // Format the data for Chart.js
+  const labels = []
+  const data = []
+
+  predictions.forEach((p) => {
+    labels.push(
+      new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    )
+    data.push(p.v)
+  })
+
   const chartData = {
-    labels: predictions.map((p) => new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+    labels,
     datasets: [
       {
         label: 'Tide Height (ft)',
-        data: predictions.map((p) => p.v),
+        data,
         borderColor: 'rgb(54, 162, 235)',
         backgroundColor: 'rgba(54, 162, 235, 0.5)',
         tension: 0.4, // Make the line smooth
