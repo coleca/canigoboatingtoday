@@ -7,9 +7,9 @@ test('Tide chart loads without errors', async ({ page, context }) => {
 
   await page.goto('file:///app/index.html');
 
-  // Wait for the loader to disappear
-  await page.waitForSelector('#loader-overlay:not(.visible)', { timeout: 90000 });
+  // Wait for the loader to have display: none
+  await expect(page.locator('#loader-overlay')).toBeHidden({ timeout: 15000 });
 
-  // Check that the tide chart is visible
-  await expect(page.locator('#tide-chart')).toBeVisible({ timeout: 10000 });
+  // Wait for the tide chart parent to be visible
+  await expect(page.locator('#tide-chart')).toBeVisible({ timeout: 15000 });
 });
