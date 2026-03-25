@@ -615,7 +615,8 @@ function displayRadarMap(lat, lon) {
 
     radarMap = L.map('radar-map-container').setView([lat, lon], 10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18
     }).addTo(radarMap);
 
     // Fetch RainViewer API data
@@ -632,10 +633,11 @@ function displayRadarMap(lat, lon) {
 
             // Load tile layers
             pastFrames.forEach((frame, index) => {
-                const layer = L.tileLayer(`${apiData.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`, {
+                const layer = L.tileLayer(`${apiData.host}${frame.path}/256/{z}/{x}/{y}/2/1_0.png`, {
                     tileSize: 256,
                     opacity: 0,
-                    zIndex: index
+                    zIndex: index,
+                    maxNativeZoom: 8
                 });
                 radarMap.addLayer(layer);
                 radarLayers.push(layer);
