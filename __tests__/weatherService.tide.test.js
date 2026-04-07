@@ -127,4 +127,10 @@ describe('weatherService - Tide Data', () => {
     // fetch should have only been called once
     expect(fetch).toHaveBeenCalledTimes(1)
   })
+
+  test('throws an error if coordinates are invalid', async () => {
+    await expect(getTideData(91, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+    await expect(getTideData(34.0522, -181)).rejects.toThrow('Invalid coordinates provided.')
+    await expect(getTideData(null, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+  })
 })
