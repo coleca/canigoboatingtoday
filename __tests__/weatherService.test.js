@@ -126,5 +126,11 @@ describe('weatherService', () => {
         'NWS forecast API request failed: Internal Server Error'
       )
     })
+
+    test('throws an error if coordinates are invalid', async () => {
+      await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+      await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid coordinates provided.')
+      await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+    })
   })
 })

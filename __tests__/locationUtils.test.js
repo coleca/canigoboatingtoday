@@ -1,6 +1,33 @@
-import { getHaversineDistance, getHaversineDistanceOptimized, deg2rad } from '@/lib/locationUtils'
+import { getHaversineDistance, isValidCoordinate } from '@/lib/locationUtils'
 
 describe('locationUtils', () => {
+  describe('isValidCoordinate', () => {
+    test('should return true for valid coordinates', () => {
+      expect(isValidCoordinate(34.0522, -118.2437)).toBe(true)
+      expect(isValidCoordinate(0, 0)).toBe(true)
+      expect(isValidCoordinate(90, 180)).toBe(true)
+      expect(isValidCoordinate(-90, -180)).toBe(true)
+    })
+
+    test('should return false for invalid latitude', () => {
+      expect(isValidCoordinate(91, 0)).toBe(false)
+      expect(isValidCoordinate(-91, 0)).toBe(false)
+      expect(isValidCoordinate(NaN, 0)).toBe(false)
+      expect(isValidCoordinate(Infinity, 0)).toBe(false)
+      expect(isValidCoordinate('34', 0)).toBe(false)
+      expect(isValidCoordinate(null, 0)).toBe(false)
+    })
+
+    test('should return false for invalid longitude', () => {
+      expect(isValidCoordinate(0, 181)).toBe(false)
+      expect(isValidCoordinate(0, -181)).toBe(false)
+      expect(isValidCoordinate(0, NaN)).toBe(false)
+      expect(isValidCoordinate(0, Infinity)).toBe(false)
+      expect(isValidCoordinate(0, ' -118')).toBe(false)
+      expect(isValidCoordinate(0, undefined)).toBe(false)
+    })
+  })
+
   describe('getHaversineDistance', () => {
     test('should return 0 for the same coordinates', () => {
       const distance = getHaversineDistance(34.0522, -118.2437, 34.0522, -118.2437)
