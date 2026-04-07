@@ -1,4 +1,4 @@
-import { getHaversineDistance } from '@/lib/locationUtils'
+import { getHaversineDistance, getHaversineDistanceOptimized, deg2rad } from '@/lib/locationUtils'
 
 describe('locationUtils', () => {
   describe('getHaversineDistance', () => {
@@ -21,6 +21,24 @@ describe('locationUtils', () => {
 
       // Check if the calculated distance is within a reasonable tolerance (e.g., +/- 1 km)
       expect(distance).toBeCloseTo(expectedDistance, 0)
+    })
+  })
+
+  describe('getHaversineDistanceOptimized', () => {
+    test('should return the same result as getHaversineDistance', () => {
+      const lat1 = 34.0522
+      const lon1 = -118.2437
+      const lat2 = 37.7749
+      const lon2 = -122.4194
+
+      const standardDistance = getHaversineDistance(lat1, lon1, lat2, lon2)
+
+      const lat1Rad = deg2rad(lat1)
+      const lon1Rad = deg2rad(lon1)
+      const cosLat1 = Math.cos(lat1Rad)
+      const optimizedDistance = getHaversineDistanceOptimized(lat1Rad, lon1Rad, cosLat1, lat2, lon2)
+
+      expect(optimizedDistance).toBeCloseTo(standardDistance, 10)
     })
   })
 })
