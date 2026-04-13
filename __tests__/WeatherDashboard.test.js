@@ -93,4 +93,28 @@ describe('WeatherDashboard', () => {
       ).toBeInTheDocument()
     })
   })
+
+  test('displays an error message when geolocation is not supported', async () => {
+    const originalGeolocation = global.navigator.geolocation
+
+    // Simulate unsupported geolocation
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: undefined,
+      configurable: true,
+    })
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Error: Geolocation is not supported by this browser.')
+      ).toBeInTheDocument()
+    })
+
+    // Restore geolocation
+    Object.defineProperty(global.navigator, 'geolocation', {
+      value: originalGeolocation,
+      configurable: true,
+    })
+  })
 })
