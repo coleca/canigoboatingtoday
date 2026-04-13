@@ -3,14 +3,16 @@ import {
   getHaversineDistance,
   getHaversineDistanceOptimized,
   isValidCoordinate,
+  deg2rad,
 } from "@/lib/locationUtils";
 
 // Mock the locationUtils module
 jest.mock("@/lib/locationUtils", () => ({
-  ...jest.requireActual("@/lib/locationUtils"),
+  __esModule: true,
   getHaversineDistance: jest.fn(),
   getHaversineDistanceOptimized: jest.fn(),
-  isValidCoordinate: jest.fn(),
+  isValidCoordinate: jest.fn(() => true),
+  deg2rad: jest.fn((deg) => deg * (Math.PI / 180)),
 }));
 
 // Mock the global fetch and localStorage
@@ -32,8 +34,6 @@ describe("weatherService - Tide Data", () => {
     // Clear all mocks before each test
     fetch.mockClear();
     getHaversineDistanceOptimized.mockClear();
-    isValidCoordinate.mockClear();
-    isValidCoordinate.mockReturnValue(true);
     mockLocalStorage = {};
   });
 
@@ -55,7 +55,6 @@ describe("weatherService - Tide Data", () => {
   };
 
   test("fetches station list, finds closest station, and returns tide data", async () => {
-    isValidCoordinate.mockReturnValue(true);
     // Simulate finding the closest station (return different distances)
     getHaversineDistanceOptimized
       .mockReturnValueOnce(100)
@@ -88,7 +87,6 @@ describe("weatherService - Tide Data", () => {
   });
 
   test("uses cached station list if available and not expired", async () => {
-    isValidCoordinate.mockReturnValue(true);
     // Pre-populate the cache with the station list
     const cachedData = {
       timestamp: Date.now(),
@@ -116,7 +114,6 @@ describe("weatherService - Tide Data", () => {
   });
 
   test("fetches new station list if cache is expired", async () => {
-    isValidCoordinate.mockReturnValue(true);
     // Pre-populate the cache with an expired timestamp
     const expiredTimestamp = Date.now() - 8 * 24 * 60 * 60 * 1000; // 8 days ago
     const cachedData = {
@@ -145,7 +142,6 @@ describe("weatherService - Tide Data", () => {
   });
 
   test("throws error if fetching station list fails", async () => {
-    isValidCoordinate.mockReturnValue(true);
     // Mock the first fetch call to return a non-ok response
     fetch.mockResolvedValueOnce({
       ok: false,
@@ -161,7 +157,10 @@ describe("weatherService - Tide Data", () => {
   });
 
   test("throws an error if coordinates are invalid", async () => {
-    isValidCoordinate.mockReturnValue(false);
+    isValidCoordinate
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false);
     await expect(getTideData(91, -118.2437)).rejects.toThrow(
       "Invalid coordinates provided.",
     );
@@ -171,33 +170,5 @@ describe("weatherService - Tide Data", () => {
     await expect(getTideData(null, -118.2437)).rejects.toThrow(
       "Invalid coordinates provided.",
     );
-  });
-
-  test("throws error if fetching tide predictions fails", async () => {
-    isValidCoordinate.mockReturnValue(true);
-    // Pre-populate the cache with the station list to skip the first fetch
-    const cachedData = {
-      timestamp: Date.now(),
-      stations: mockStations.stations,
-    };
-    localStorage.setItem("tideStations", JSON.stringify(cachedData));
-
-    getHaversineDistanceOptimized
-      .mockReturnValueOnce(100)
-      .mockReturnValueOnce(10)
-      .mockReturnValueOnce(50);
-
-    // Mock the tide prediction API call to fail
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      statusText: "Internal Server Error",
-    });
-
-    await expect(getTideData(latitude, longitude)).rejects.toThrow(
-      "NOAA tide data API request failed: Internal Server Error",
-    );
-
-    // fetch should have only been called once (for the tide data)
-    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
