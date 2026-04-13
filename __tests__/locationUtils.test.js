@@ -1,4 +1,4 @@
-import { getHaversineDistance, isValidCoordinate } from '@/lib/locationUtils'
+import { getHaversineDistance, isValidCoordinate, getHaversineDistanceOptimized, deg2rad } from '@/lib/locationUtils'
 
 describe('locationUtils', () => {
   describe('isValidCoordinate', () => {
