@@ -2,7 +2,14 @@ import { getTideData } from '@/lib/weatherService'
 import { getHaversineDistance } from '@/lib/locationUtils'
 
 // Mock the locationUtils module
-jest.mock('@/lib/locationUtils')
+jest.mock('@/lib/locationUtils', () => {
+  const original = jest.requireActual('@/lib/locationUtils');
+  return {
+    ...original,
+    getHaversineDistance: jest.fn(),
+    getHaversineDistanceOptimized: jest.fn(),
+  };
+})
 
 // Mock the global fetch and localStorage
 global.fetch = jest.fn()
@@ -23,6 +30,7 @@ describe('weatherService - Tide Data', () => {
     // Clear all mocks before each test
     fetch.mockClear()
     getHaversineDistance.mockClear()
+    require('@/lib/locationUtils').getHaversineDistanceOptimized.mockClear()
     mockLocalStorage = {}
   })
 
@@ -45,7 +53,7 @@ describe('weatherService - Tide Data', () => {
 
   test('fetches station list, finds closest station, and returns tide data', async () => {
     // Simulate finding the closest station (return different distances)
-    getHaversineDistance.mockReturnValueOnce(100).mockReturnValueOnce(10).mockReturnValueOnce(50)
+    require('@/lib/locationUtils').getHaversineDistanceOptimized.mockReturnValueOnce(100).mockReturnValueOnce(10).mockReturnValueOnce(50)
 
     // Mock the API calls
     fetch
@@ -66,7 +74,7 @@ describe('weatherService - Tide Data', () => {
     // Expect the station list to be cached
     expect(localStorage.setItem).toHaveBeenCalledWith('tideStations', expect.any(String))
     // Expect haversine to be called for each station
-    expect(getHaversineDistance).toHaveBeenCalledTimes(3)
+    expect(require('@/lib/locationUtils').getHaversineDistanceOptimized).toHaveBeenCalledTimes(3)
   })
 
   test('uses cached station list if available and not expired', async () => {
@@ -77,7 +85,7 @@ describe('weatherService - Tide Data', () => {
     }
     localStorage.setItem('tideStations', JSON.stringify(cachedData))
 
-    getHaversineDistance.mockReturnValueOnce(100).mockReturnValueOnce(10).mockReturnValueOnce(50)
+    require('@/lib/locationUtils').getHaversineDistanceOptimized.mockReturnValueOnce(100).mockReturnValueOnce(10).mockReturnValueOnce(50)
 
     // Only mock the tide prediction API call, as the station list should not be fetched
     fetch.mockResolvedValueOnce({
@@ -90,7 +98,7 @@ describe('weatherService - Tide Data', () => {
     expect(tideData).toEqual(mockTidePredictions)
     // fetch should have only been called once (for the tide data)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(getHaversineDistance).toHaveBeenCalledTimes(3)
+    expect(require('@/lib/locationUtils').getHaversineDistanceOptimized).toHaveBeenCalledTimes(3)
   })
 
   test('fetches new station list if cache is expired', async () => {
@@ -102,7 +110,7 @@ describe('weatherService - Tide Data', () => {
     }
     localStorage.setItem('tideStations', JSON.stringify(cachedData))
 
-    getHaversineDistance.mockReturnValueOnce(100).mockReturnValueOnce(10).mockReturnValueOnce(50)
+    require('@/lib/locationUtils').getHaversineDistanceOptimized.mockReturnValueOnce(100).mockReturnValueOnce(10).mockReturnValueOnce(50)
 
     // Mock both API calls, as the station list needs to be re-fetched
     fetch
