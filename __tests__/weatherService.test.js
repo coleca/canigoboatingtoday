@@ -59,7 +59,7 @@ describe('weatherService', () => {
         `https://api.weather.gov/points/${latitude},${longitude}`,
         {
           headers: {
-            'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, unspecified)',
+            'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
           },
         }
       )
@@ -67,34 +67,11 @@ describe('weatherService', () => {
       // Verify fetch was called correctly for the second (forecast) request
       expect(fetch).toHaveBeenCalledWith(mockPointsData.properties.forecast, {
         headers: {
-          'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, unspecified)',
+          'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
         },
       })
     })
 
-    test('uses NEXT_PUBLIC_ADMIN_EMAIL in User-Agent if provided', async () => {
-      process.env.NEXT_PUBLIC_ADMIN_EMAIL = 'test@example.com'
-      // We need to re-require the module to pick up the new environment variable
-      // because it's defined at the top level of weatherService.js
-      const { getNWSForecast: getNWSForecastWithEnv } = require('@/lib/weatherService')
-
-      fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockForecastData,
-        })
-
-      await getNWSForecastWithEnv(latitude, longitude)
-
-      const expectedUserAgent = 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, test@example.com)'
-      expect(fetch).toHaveBeenCalledWith(expect.any(String), {
-        headers: { 'User-Agent': expectedUserAgent },
-      })
-    })
 
     test('throws an error if the points API request fails', async () => {
       // Simulate a failed response from the points API
@@ -125,6 +102,12 @@ describe('weatherService', () => {
       await expect(getNWSForecast(latitude, longitude)).rejects.toThrow(
         'NWS forecast API request failed: Internal Server Error'
       )
+    })
+
+    test('throws an error if coordinates are invalid', async () => {
+      await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+      await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid coordinates provided.')
+      await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid coordinates provided.')
     })
   })
 })
