@@ -114,4 +114,23 @@ describe('weatherService - Tide Data', () => {
     expect(localStorage.removeItem).toHaveBeenCalledWith('tideStations')
     expect(fetch).toHaveBeenCalledTimes(2)
   })
+
+  test('throws error if fetching station list fails', async () => {
+    // Mock the first fetch call to return a non-ok response
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      statusText: 'Not Found',
+    })
+
+    await expect(getTideData(latitude, longitude)).rejects.toThrow('Failed to fetch NOAA tide station list.')
+
+    // fetch should have only been called once
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  test('throws an error if coordinates are invalid', async () => {
+    await expect(getTideData(91, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+    await expect(getTideData(34.0522, -181)).rejects.toThrow('Invalid coordinates provided.')
+    await expect(getTideData(null, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+  })
 })
