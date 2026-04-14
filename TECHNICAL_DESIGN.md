@@ -1,6 +1,6 @@
 # Technical Design Document: Boating Forecast PWA
 
-*Note: If you are looking for a comprehensive prompt to recreate this application from scratch using an AI coding assistant, please see **[App Creation Prompt](docs/PROMPT.md)**.*
+*Note: If you are looking for a comprehensive prompt to recreate this application from scratch using an AI coding assistant, please see **[App Creation Prompt](PROMPT.md)**.*
 
 ## 1. Project Goals & Features
 

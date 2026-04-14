@@ -20,7 +20,7 @@ For a deeper understanding of the project's architecture and deployment, please 
 -   **[Technical Design Document](./TECHNICAL_DESIGN.md):** The blueprint for the application's architecture, component design, and data flow.
 -   **[Deployment Guide](./DEPLOYMENT.md):** Step-by-step instructions for deploying the application to GitHub Pages.
 -   **[Agent Guidelines](./AGENTS.md):** The development standards and testing procedures followed during the project's construction.
--   **[App Creation Prompt](./docs/PROMPT.md):** A comprehensive prompt to recreate this application from scratch using an AI coding assistant.
+-   **[App Creation Prompt](./PROMPT.md):** A comprehensive prompt to recreate this application from scratch using an AI coding assistant.
 
 ## Getting Started
 
