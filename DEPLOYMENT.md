@@ -1,5 +1,7 @@
 # Deployment Guide: GitHub Pages
 
+*Note: If you are looking for a comprehensive prompt to recreate this application from scratch using an AI coding assistant, please see **[App Creation Prompt](PROMPT.md)**.*
+
 This guide provides step-by-step instructions for deploying this Next.js application to GitHub Pages.
 
 ## 1. Overview
