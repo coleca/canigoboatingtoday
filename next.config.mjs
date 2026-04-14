@@ -1,5 +1,5 @@
 // next.config.mjs
-import withPWA from 'next-pwa'
+import withPWAInit from '@ducanh2912/next-pwa'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -20,4 +20,5 @@ const pwaConfig = {
   disable: process.env.NODE_ENV === 'development', // Disable PWA in development
 }
 
-export default withPWA(pwaConfig)(nextConfig)
+const withPWA = withPWAInit(pwaConfig);
+export default withPWA(nextConfig)

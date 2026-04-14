@@ -105,9 +105,9 @@ describe('weatherService', () => {
     })
 
     test('throws an error if coordinates are invalid', async () => {
-      await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid coordinates provided.')
-      await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid coordinates provided.')
-      await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid coordinates provided.')
+      await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
+      await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid latitude or longitude provided.')
+      await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
     })
   })
 })

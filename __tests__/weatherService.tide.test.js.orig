@@ -162,13 +162,13 @@ describe("weatherService - Tide Data", () => {
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(false);
     await expect(getTideData(91, -118.2437)).rejects.toThrow(
-      "Invalid latitude or longitude provided.",
+      "Invalid coordinates provided.",
     );
     await expect(getTideData(34.0522, -181)).rejects.toThrow(
-      "Invalid latitude or longitude provided.",
+      "Invalid coordinates provided.",
     );
     await expect(getTideData(null, -118.2437)).rejects.toThrow(
-      "Invalid latitude or longitude provided.",
+      "Invalid coordinates provided.",
     );
   });
 });

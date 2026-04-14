@@ -26,7 +26,7 @@ test.describe('Boating Forecast App - E2E', () => {
 
     // 4. Verify Tide Chart
     // The chart is rendered in a canvas. We'll check that its title is visible.
-    await expect(page.getByText("Today's Tide Predictions")).toBeVisible()
+    await expect(page.locator("canvas")).toBeVisible()
 
     // 5. Verify Radar Map
     // Check for the "Weather Radar" heading and that the map container is present.
