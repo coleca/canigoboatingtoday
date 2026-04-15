@@ -27,6 +27,7 @@ describe('weatherService', () => {
     const mockPointsData = {
       properties: {
         forecast: 'https://api.weather.gov/gridpoints/LOX/15,33/forecast',
+        forecastGridData: 'https://api.weather.gov/gridpoints/LOX/15,33',
       },
     }
     const mockForecastData = {
@@ -43,16 +44,20 @@ describe('weatherService', () => {
           ok: true,
           json: async () => mockPointsData,
         })
-        // Second call for the actual forecast
+        // Second & Third calls for forecast & gridData (Promise.all)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => mockForecastData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ properties: { testGrid: true } }),
         })
 
       const forecast = await getNWSForecast(latitude, longitude)
 
       // Expect the final forecast properties to be returned
-      expect(forecast).toEqual(mockForecastData.properties)
+      expect(forecast).toEqual({ ...mockForecastData.properties, gridData: { testGrid: true } })
 
       // Verify fetch was called correctly for the first (points) request
       expect(fetch).toHaveBeenCalledWith(
@@ -96,6 +101,10 @@ describe('weatherService', () => {
         .mockResolvedValueOnce({
           ok: false,
           statusText: 'Internal Server Error',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ properties: {} })
         })
 
       // Expect the function to reject with an error

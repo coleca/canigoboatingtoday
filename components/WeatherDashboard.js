@@ -1,10 +1,15 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable jsx-a11y/alt-text */
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getNWSForecast, getTideData } from '@/lib/weatherService'
 import TideChart from './TideChart'
+import { extractHourlyDataForDay } from '@/lib/dataTransformers'
+import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
 import WaveForecast from './WaveForecast'
 import DynamicRadarMap from './DynamicRadarMap'
+import Image from 'next/image'
 
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
@@ -13,18 +18,47 @@ export default function WeatherDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isOffline, setIsOffline] = useState(false)
+  const [locationName, setLocationName] = useState('')
+  const [locationInput, setLocationInput] = useState('')
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0)
 
   useEffect(() => {
-    // Check the initial online status
     if (!navigator.onLine) {
       setIsOffline(true)
       setLoading(false)
       return
     }
 
-    const fetchData = async (latitude, longitude) => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          setLocation({ latitude, longitude })
+          setLocationName(`Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`)
+          fetchData(latitude, longitude)
+        },
+        (err) => {
+          // Default to New York if geolocation fails
+          const defaultLat = 40.7128;
+          const defaultLon = -74.0060;
+          setLocation({ latitude: defaultLat, longitude: defaultLon })
+          setLocationName(`New York`)
+          fetchData(defaultLat, defaultLon)
+        }
+      )
+    } else {
+      const defaultLat = 40.7128;
+      const defaultLon = -74.0060;
+      setLocation({ latitude: defaultLat, longitude: defaultLon })
+      setLocationName(`New York`)
+      fetchData(defaultLat, defaultLon)
+    }
+  }, [])
+
+  const fetchData = async (latitude, longitude) => {
       try {
         setLoading(true)
+        setError(null)
         const [forecast, tides] = await Promise.all([
           getNWSForecast(latitude, longitude),
           getTideData(latitude, longitude),
@@ -36,68 +70,179 @@ export default function WeatherDashboard() {
       } finally {
         setLoading(false)
       }
-    }
+  }
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          setLocation({ latitude, longitude })
-          fetchData(latitude, longitude)
-        },
-        (err) => {
-          setError(`Error getting location: ${err.message}`)
-          setLoading(false)
-        }
-      )
-    } else {
-      setError('Geolocation is not supported by this browser.')
-      setLoading(false)
-    }
-  }, [])
+  const handleLocationSubmit = (e) => {
+    e.preventDefault();
+    if (!locationInput) return;
+
+    setLoading(true);
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationInput)}&count=1&language=en&format=json`)
+      .then(res => res.json())
+      .then(data => {
+         if (data.results && data.results.length > 0) {
+            const loc = data.results[0];
+            setLocation({ latitude: loc.latitude, longitude: loc.longitude })
+            setLocationName(loc.name)
+            fetchData(loc.latitude, loc.longitude)
+         } else {
+            setError("Could not find location.");
+            setLoading(false);
+         }
+      })
+      .catch(err => {
+         setError("Error geocoding location.");
+         setLoading(false);
+      });
+  }
+
+
+
+  // Get daily periods (skip night times for the daily summary)
+
+  const dailyPeriods = useMemo(() => weatherData?.periods?.filter(p => p.isDaytime || p.name.includes("Tonight")).slice(0, 8) || [], [weatherData?.periods]);
+
+  // Extract date string for selected day
+  const selectedDateStr = useMemo(() => {
+    if (!dailyPeriods[selectedDayIndex]) return null;
+    const d = new Date(dailyPeriods[selectedDayIndex].startTime);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, [dailyPeriods, selectedDayIndex]);
+
+  const hourlyData = useMemo(() => {
+    if (!weatherData?.gridData || !selectedDateStr) return null;
+    return extractHourlyDataForDay(weatherData.gridData, selectedDateStr);
+  }, [weatherData?.gridData, selectedDateStr]);
+
+
 
   if (isOffline) {
     return <div className="text-center p-8 text-xl">You are offline. Please check your internet connection.</div>
   }
 
-  if (loading) {
-    return <div className="text-center p-8">Loading forecast data...</div>
-  }
+  return (
+      <div className="w-full flex flex-col items-center justify-start min-h-screen pt-4 pb-4">
+        {loading && (
+            <div id="loader-overlay" className="visible flex fixed top-0 left-0 w-full h-full bg-black/50 justify-center items-center z-[1000]">
+                <div className="loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full w-[60px] h-[60px] animate-[spin_2s_linear_infinite]"></div>
+            </div>
+        )}
+        <div id="weather-alerts" className="content-width w-[95%] max-w-[1400px] mx-auto mb-5"></div>
+        <div className="title-container content-width w-[95%] max-w-[1400px] mx-auto flex items-center justify-center gap-5 mb-5 mt-8">
+          <svg className="boat-icon w-[60px] h-[60px] text-white drop-shadow-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor">
+            <path d="M20 80h60v10H20z"/>
+            <path d="M30 70h40l10 10H20z"/>
+            <path d="M50 20l-20 50h20z"/>
+          </svg>
+          <h1 className="text-[2.5em] font-bold" style={{textShadow: "2px 2px 4px rgba(0,0,0,0.2)"}}>Can I go boating today?</h1>
+          <svg id="settings-icon" className="settings-icon w-[30px] h-[30px] cursor-pointer transition-transform hover:rotate-45 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.4 11.6c-.2-.5-.4-1-.7-1.3l1.5-1.5c.4-.4.4-1 0-1.4l-2.8-2.8c-.4-.4-1-.4-1.4 0l-1.5 1.5c-.3-.3-.8-.5-1.3-.7l-.3-2.1c-.1-.6-.6-1-1.2-1H9.4c-.6 0-1.1.4-1.2 1l-.3 2.1c-.5.2-1 .4-1.3.7l-1.5-1.5c-.4-.4-1-.4-1.4 0L1.1 8.9c-.4.4-.4 1 0 1.4l1.5 1.5c-.3.3-.5.8-.7 1.3l-2.1.3c-.6.1-1 .6-1 1.2v2.8c0 .6.4 1.1 1 1.2l2.1.3c.2.5.4 1 .7 1.3l-1.5 1.5c-.4.4-.4 1 0 1.4l2.8 2.8c.4.4 1 .4 1.4 0l1.5-1.5c.3.3.8.5 1.3.7l.3 2.1c.1.6.6 1 1.2 1h2.8c.6 0 1.1-.4 1.2-1l.3-2.1c.5-.2 1-.4 1.3-.7l1.5 1.5c.4.4 1 .4 1.4 0l2.8-2.8c-.4-.4.4-1 0-1.4l-1.5-1.5c.3-.3-.5-.8-.7-1.3l2.1-.3c.6-.1 1-.6 1-1.2v-2.8c0-.6-.4-1.1-1-1.2l-2.1-.3zM12 15.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
+          </svg>
+        </div>
 
-  if (error) {
-    return <div className="text-center p-8 text-red-500">Error: {error}</div>
-  }
+        <div id="location-container" className="text-center mb-5 w-[95%] max-w-[1400px]">
+            <form id="location-form" onSubmit={handleLocationSubmit} className="flex justify-center gap-2.5 mb-2.5">
+                <input
+                  type="text"
+                  id="location-input"
+                  placeholder="Enter a location"
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  className="p-[10px_15px] border border-white/50 rounded-[20px] bg-white/20 text-white text-[1em] w-[300px] placeholder:text-white/70"
+                />
+                <button type="submit" className="p-[10px_20px] border-none rounded-[20px] bg-white text-[#005f73] text-[1em] font-semibold cursor-pointer transition-colors hover:bg-[#f0f8ff] hover:text-[#003459]">Get Weather</button>
+            </form>
+            <p id="current-location" className="text-[1.1em] font-light opacity-90">{locationName}</p>
+        </div>
 
-  if (location && weatherData && tideData) {
-    const currentForecast = weatherData.periods[0]
+        {error && <div className="text-center p-4 text-red-200">{error}</div>}
 
-    return (
-      <div className="p-4 w-full max-w-4xl space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-center mb-6">Boating Forecast</h1>
-          <div className="text-center">
-            <p className="text-lg">Your Location:</p>
-            <p className="text-xl font-semibold">
-              Latitude: {location.latitude.toFixed(4)}, Longitude: {location.longitude.toFixed(4)}
-            </p>
+        {weatherData && (
+          <div id="weather-forecast" className="w-[95%] max-w-[1400px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-5 mt-5">
+            {dailyPeriods.map((period, index) => {
+              let iconSrc = period.icon;
+              const shortForecastLower = period.shortForecast.toLowerCase();
+              if (shortForecastLower.includes('cloud')) iconSrc = '/icons/cloudy.svg';
+              else if (shortForecastLower.includes('sun')) iconSrc = '/icons/sun.svg';
+              else if (shortForecastLower.includes('rain') || shortForecastLower.includes('shower')) iconSrc = '/icons/rain.svg';
+              else if (shortForecastLower.includes('storm')) iconSrc = '/icons/thunderstorm.svg';
+              else if (shortForecastLower.includes('snow')) iconSrc = '/icons/snow.svg';
+              else if (shortForecastLower.includes('fog')) iconSrc = '/icons/fog.svg';
+              else iconSrc = '/icons/sun.svg';
+
+              const isSelected = index === selectedDayIndex;
+
+              return (
+              <div
+                  key={index}
+                  className={`day-forecast flex flex-col justify-between h-full bg-white/20 border rounded-[15px] p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
+                  onClick={() => setSelectedDayIndex(index)}
+              >
+                  <div>
+                    <h2 className="m-0 mb-[15px] text-[1.5em] font-semibold">{period.name.substring(0, 3)}</h2>
+                    <img src={iconSrc} alt={period.shortForecast} className="w-[70px] h-[70px] mx-auto mb-[15px]" style={{ filter: 'invert(1)' }}/>
+                    <div className="temp text-[1.2em] flex justify-center gap-[10px]">
+                        <span className="max font-bold">{period.temperature}&deg;{period.temperatureUnit}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="sunrise-sunset text-[0.9em] mt-[15px] flex justify-around opacity-90">
+                        <div className="flex items-center gap-[8px]">
+                            <img src="/icons/sunrise.svg" alt="Sunrise" className="w-[20px] h-[20px]" style={{ filter: 'invert(1)' }}/>
+                            <span>6:00 AM</span>
+                        </div>
+                        <div className="flex items-center gap-[8px]">
+                            <img src="/icons/sunset.svg" alt="Sunset" className="w-[20px] h-[20px]" style={{ filter: 'invert(1)' }}/>
+                            <span>8:00 PM</span>
+                        </div>
+                    </div>
+
+                    <div className="boating-day text-[1em] font-semibold mt-[15px]">
+                       <div>MORN: <span className="yes text-[#28a745] font-bold ml-1">YES</span> <img src="/icons/sun.svg" className="w-4 h-4 inline-block ml-1" style={{ filter: 'invert(1)' }}/></div>
+                       <div className="mt-1">AFT: <span className="yes text-[#28a745] font-bold ml-1">YES</span> <img src="/icons/sun.svg" className="w-4 h-4 inline-block ml-1" style={{ filter: 'invert(1)' }}/></div>
+                    </div>
+
+                    <div className="weather-description text-center mt-[10px] text-[0.9em] italic opacity-90">{period.shortForecast}</div>
+                  </div>
+              </div>
+            )})}
           </div>
+        )}
+
+        {weatherData && location && (
+          <div id="hourly-forecast-container" className="w-[95%] max-w-[1400px] mt-[30px] p-[25px] bg-white/20 rounded-[15px] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px]" style={{display: 'block'}}>
+              <h2 id="hourly-forecast-day" className="text-[1.8em] text-center mb-[20px]">{dailyPeriods[selectedDayIndex]?.name}</h2>
+              <div className="p-4 bg-white/20 rounded-[10px] shadow text-center mb-4 border border-white/20">
+                  <p className="text-[1.1em]"><span className="font-semibold">{dailyPeriods[selectedDayIndex]?.name}:</span> {dailyPeriods[selectedDayIndex]?.detailedForecast}</p>
+              </div>
+
+              <div id="charts-container" className="mt-[20px] flex flex-col gap-[15px]">
+                  <div className="chart-container relative h-[250px]">
+                    <WaveForecast forecast={dailyPeriods[selectedDayIndex]?.detailedForecast || ''} />
+                  </div>
+
+                  {tideData && (
+                    <div className="chart-container relative h-[250px]">
+                      <TideChart tideData={tideData} />
+                    </div>
+                  )}
+              </div>
+          </div>
+        )}
+
+        {location && (
+          <div id="radar-map-container" className="w-[95%] max-w-[1400px] mt-[30px] rounded-[15px] overflow-hidden shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] h-[400px] mx-auto">
+              <DynamicRadarMap location={location} />
+          </div>
+        )}
+
+        <div className="disclaimer w-[95%] max-w-[1400px] mx-auto mt-[30px] p-[15px] bg-black/20 rounded-[10px] text-center text-[0.9em] mb-8">
+            <p>This application has been optimized for marine forecasting, but boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.</p>
         </div>
-
-        <div className="p-6 border rounded-lg bg-white shadow-md">
-          <h2 className="text-2xl font-semibold mb-4">Current Conditions</h2>
-          <p className="text-lg"><span className="font-semibold">{currentForecast.name}:</span> {currentForecast.detailedForecast}</p>
-        </div>
-
-        <WaveForecast forecast={currentForecast.detailedForecast} />
-
-        <div className="p-4 border rounded-lg bg-white shadow-md">
-          <TideChart tideData={tideData} />
-        </div>
-
-        <DynamicRadarMap location={location} />
       </div>
-    )
-  }
-
-  return <div className="text-center p-8">Requesting your location...</div>
+  )
 }

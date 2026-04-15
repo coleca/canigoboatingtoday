@@ -38,7 +38,7 @@ const timeFormatter = new Intl.DateTimeFormat([], {
  */
 export default function TideChart({ tideData }) {
   // The API returns an object with a 'predictions' array
-  const predictions = tideData?.predictions || []
+  const predictions = useMemo(() => tideData?.predictions || [], [tideData?.predictions])
 
   // Format the data for Chart.js
   const chartData = useMemo(() => {

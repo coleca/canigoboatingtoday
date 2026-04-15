@@ -1,13 +1,13 @@
 // tests/app.spec.js
 import { test, expect } from '@playwright/test'
 
-test.describe('Boating Forecast App - E2E', () => {
+test.describe('Can I go boating today? App - E2E', () => {
   test('should load and display a complete weather forecast', async ({ page }) => {
     // Navigate to the home page
     await page.goto('/')
 
     // Wait for the main heading to be visible, indicating the app has loaded
-    await expect(page.locator('h1')).toHaveText('Boating Forecast')
+    await expect(page.locator('h1')).toHaveText('Can I go boating today?')
 
     // 1. Verify Location Display
     // Check that the latitude and longitude are displayed, confirming geolocation worked.
