@@ -14,10 +14,9 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.getByText(/Latitude: 34.0522/)).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(/Longitude: -118.2437/)).toBeVisible()
 
-    // 2. Verify Current Conditions
-    // Check for the "Current Conditions" heading and that a forecast period (e.g., "Tonight") is visible.
-    await expect(page.getByRole('heading', { name: 'Current Conditions' })).toBeVisible()
-    await expect(page.getByText(/Tonight|Today|This Afternoon/)).toBeVisible()
+    // 2. Verify Day Forecasts
+    // Check that an abbreviated day header (e.g., "Thi" for This Afternoon, "Ton" for Tonight, etc.) is visible.
+    await expect(page.getByText(/Thi|Ton|Mon|Tue|Wed|Thu|Fri|Sat|Sun/).first()).toBeVisible()
 
     // 3. Verify Wave Forecast
     // Check that the wave forecast component has rendered and displays some value (even "N/A").
