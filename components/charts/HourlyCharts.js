@@ -70,7 +70,8 @@ export function getCommonOptions(title, labels, activeHour, onActiveHourChange) 
     },
     onHover: (_event, elements) => {
       if (!onActiveHourChange) return
-      onActiveHourChange(elements[0]?.index ?? null)
+      const hoveredLabel = elements[0] ? labels[elements[0].index] : null
+      onActiveHourChange(hoveredLabel ? getHoveredHourFromLabel(hoveredLabel) : null)
     },
     plugins: {
       legend: { display: false },
