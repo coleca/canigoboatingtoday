@@ -1,4 +1,4 @@
-import { parseWaveHeight } from '@/lib/forecastUtils'
+import { parseWaveHeight, parseWaveHeightValue } from '@/lib/forecastUtils'
 
 describe('forecastUtils', () => {
   describe('parseWaveHeight', () => {
@@ -39,6 +39,20 @@ describe('forecastUtils', () => {
     test('should handle null or undefined input', () => {
       expect(parseWaveHeight(null)).toBe('N/A')
       expect(parseWaveHeight(undefined)).toBe('N/A')
+    })
+  })
+
+  describe('parseWaveHeightValue', () => {
+    test('returns a numeric height for a single wave value', () => {
+      expect(parseWaveHeightValue('Mostly sunny. Seas around 2 feet.')).toBe(2)
+    })
+
+    test('returns the midpoint for a wave range', () => {
+      expect(parseWaveHeightValue('Rain likely. Waves 3 to 5 feet.')).toBe(4)
+    })
+
+    test('returns null when no wave value can be parsed', () => {
+      expect(parseWaveHeightValue('No marine wave detail here.')).toBe(null)
     })
   })
 })
