@@ -1,4 +1,4 @@
-import { getNWSForecast } from '@/lib/weatherService'
+import { getNWSForecast, getTideData } from '@/lib/weatherService'
 
 // Mock the global fetch function before all tests
 global.fetch = jest.fn()
@@ -117,6 +117,42 @@ describe('weatherService', () => {
       await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
+    })
+  })
+
+  describe('getTideData', () => {
+    test('falls back to the next nearby station when the closest station has no predictions', async () => {
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            stations: [
+              { id: '1', lat: 34.0522, lng: -118.2437, name: 'Closest' },
+              { id: '2', lat: 34.0622, lng: -118.2437, name: 'Backup' },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ predictions: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            predictions: [{ t: '2026-04-16 12:00', v: '2.4' }],
+          }),
+        })
+
+      const tideData = await getTideData(34.0522, -118.2437)
+
+      expect(tideData).toEqual({
+        predictions: [{ t: '2026-04-16 12:00', v: '2.4' }],
+      })
+      expect(fetch).toHaveBeenCalledTimes(3)
+    })
+
+    test('throws when coordinates are invalid', async () => {
+      await expect(getTideData(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
     })
   })
 })

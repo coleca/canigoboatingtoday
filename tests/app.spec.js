@@ -93,14 +93,13 @@ test.describe('Can I go boating today? App - E2E', () => {
     // 2. Verify Day Forecasts
     await expect(page.getByRole('heading', { name: 'Thu', exact: true })).toBeVisible()
 
-    // 3. Verify Wave Forecast
-    // Check that the wave forecast component has rendered and displays some value (even "N/A").
-    await expect(page.getByRole('heading', { name: 'Wave Forecast' })).toBeVisible()
-    await expect(page.getByText(/Current Wave Height:/)).toBeVisible()
+    // 3. Verify the primary charts render and the old duplicate wave panel is gone
+    await expect(page.locator('#charts-container .chart-container')).toHaveCount(5)
+    await expect(page.locator('#charts-container canvas')).toHaveCount(5)
+    await expect(page.getByText('Wave Forecast')).toHaveCount(0)
 
     // 4. Verify Tide Chart
-    // The chart is rendered in a canvas. We'll check that its title is visible.
-    await expect(page.locator("canvas")).toBeVisible()
+    await expect(page.locator('#charts-container .chart-container').last().locator('canvas')).toBeVisible()
 
     // 5. Verify Radar Map
     // Check for the "Weather Radar" heading and that the map container is present.
