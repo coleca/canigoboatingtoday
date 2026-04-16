@@ -7,9 +7,9 @@ import { getNWSForecast, getTideData } from '@/lib/weatherService'
 import TideChart from './TideChart'
 import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
-import WaveForecast from './WaveForecast'
 import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
+import { parseWaveHeight } from '@/lib/forecastUtils'
 
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
@@ -48,6 +48,13 @@ export default function WeatherDashboard() {
 
     return closestPrediction?.v ?? null
   }, [activeChartHour, tideData?.predictions])
+
+  const activeOverlayLeft = useMemo(() => {
+    if (activeChartHour === null || activeChartHour === undefined) return null
+
+    const position = (activeChartHour / 23) * 100
+    return Math.min(92, Math.max(8, position))
+  }, [activeChartHour])
 
   useEffect(() => {
     if (!navigator.onLine) {
@@ -164,6 +171,20 @@ export default function WeatherDashboard() {
     return <div className="text-center p-8 text-xl">You are offline. Please check your internet connection.</div>
   }
 
+  const renderChartOverlay = (valueLabel) => {
+    if (!activeHourLabel || activeOverlayLeft === null) return null
+
+    return (
+      <div
+        className="pointer-events-none absolute top-12 z-10 -translate-x-1/2 rounded-xl border border-white/20 bg-[#245f8f]/90 px-3 py-2 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md"
+        style={{ left: `${activeOverlayLeft}%` }}
+      >
+        <div className="text-[10px] uppercase tracking-[0.12em] text-white/70">{activeHourLabel}</div>
+        <div className="mt-1 whitespace-nowrap text-sm">{valueLabel}</div>
+      </div>
+    )
+  }
+
   return (
       <div className="w-full flex flex-col items-center justify-start min-h-screen pt-2 pb-4 text-white sm:pt-4">
         {loading && (
@@ -215,6 +236,7 @@ export default function WeatherDashboard() {
               else if (shortForecastLower.includes('fog')) iconSrc = '/icons/fog.svg';
 
               const isSelected = index === selectedDayIndex;
+              const waveSummary = parseWaveHeight(period.detailedForecast)
 
               return (
               <div
@@ -230,24 +252,14 @@ export default function WeatherDashboard() {
                     </div>
                   </div>
 
-                  <div>
-                    <div className="sunrise-sunset text-[0.9em] mt-[15px] flex justify-around opacity-90">
-                        <div className="flex items-center gap-[8px]">
-                            <img src="/icons/sunrise.svg" alt="Sunrise" className="w-[20px] h-[20px]" style={{ filter: 'invert(1)' }}/>
-                            <span>6:00 AM</span>
-                        </div>
-                        <div className="flex items-center gap-[8px]">
-                            <img src="/icons/sunset.svg" alt="Sunset" className="w-[20px] h-[20px]" style={{ filter: 'invert(1)' }}/>
-                            <span>8:00 PM</span>
-                        </div>
+                  <div className="mt-4">
+                    <div className="flex flex-wrap justify-center gap-2 text-[0.85em] font-semibold">
+                      <span className="rounded-full bg-white/15 px-3 py-1">Wave {waveSummary}</span>
+                      <span className="rounded-full bg-white/15 px-3 py-1">{period.shortForecast}</span>
                     </div>
-
-                    <div className="boating-day text-[1em] font-semibold mt-[15px]">
-                       <div>MORN: <span className="yes text-[#28a745] font-bold ml-1">YES</span> <img src="/icons/sun.svg" className="w-4 h-4 inline-block ml-1" style={{ filter: 'invert(1)' }}/></div>
-                       <div className="mt-1">AFT: <span className="yes text-[#28a745] font-bold ml-1">YES</span> <img src="/icons/sun.svg" className="w-4 h-4 inline-block ml-1" style={{ filter: 'invert(1)' }}/></div>
+                    <div className="weather-description text-center mt-[10px] text-[0.9em] italic opacity-90">
+                      {period.detailedForecast}
                     </div>
-
-                    <div className="weather-description text-center mt-[10px] text-[0.9em] italic opacity-90">{period.shortForecast}</div>
                   </div>
               </div>
             )})}
@@ -258,23 +270,11 @@ export default function WeatherDashboard() {
           <div id="hourly-forecast-container" className="w-full max-w-[1400px] mt-[30px] px-3 sm:px-4">
             <div className="p-[18px] sm:p-[25px] bg-white/20 rounded-[15px] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px]" style={{display: 'block'}}>
               <h2 id="hourly-forecast-day" className="text-[1.8em] text-center mb-[20px]">{dailyPeriods[selectedDayIndex]?.name}</h2>
-              <div className="p-4 bg-white/20 rounded-[10px] shadow text-center mb-4 border border-white/20">
-                  <p className="text-[1.1em]"><span className="font-semibold">{dailyPeriods[selectedDayIndex]?.name}:</span> {dailyPeriods[selectedDayIndex]?.detailedForecast}</p>
-              </div>
-
-              <div id="charts-container" className="mt-[20px] grid grid-cols-1 xl:grid-cols-2 gap-[15px]">
-                  <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                    <WaveForecast forecast={dailyPeriods[selectedDayIndex]?.detailedForecast || ''} />
-                  </div>
-
+              <div id="charts-container" className="mt-[20px] flex flex-col gap-[15px]">
                   {hourlyData && (
                     <>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {activeHourLabel && (
-                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
-                            {activeHourLabel} {getHourlyValueForHour(hourlyData.wave) !== null ? `· ${getHourlyValueForHour(hourlyData.wave)} ft` : '· N/A'}
-                          </div>
-                        )}
+                        {renderChartOverlay(getHourlyValueForHour(hourlyData.wave) !== null ? `${getHourlyValueForHour(hourlyData.wave)} ft` : 'N/A')}
                         <WaveChart
                           waveData={hourlyData.wave}
                           labels={hourlyData.labels}
@@ -283,11 +283,7 @@ export default function WeatherDashboard() {
                         />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {activeHourLabel && (
-                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
-                            {activeHourLabel} {getHourlyValueForHour(hourlyData.temp) !== null ? `· ${getHourlyValueForHour(hourlyData.temp)}°F` : '· N/A'}
-                          </div>
-                        )}
+                        {renderChartOverlay(getHourlyValueForHour(hourlyData.temp) !== null ? `${getHourlyValueForHour(hourlyData.temp)}°F` : 'N/A')}
                         <TempChart
                           tempData={hourlyData.temp}
                           labels={hourlyData.labels}
@@ -296,11 +292,7 @@ export default function WeatherDashboard() {
                         />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {activeHourLabel && (
-                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
-                            {activeHourLabel} {getHourlyValueForHour(hourlyData.precip) !== null ? `· ${getHourlyValueForHour(hourlyData.precip)}%` : '· N/A'}
-                          </div>
-                        )}
+                        {renderChartOverlay(getHourlyValueForHour(hourlyData.precip) !== null ? `${getHourlyValueForHour(hourlyData.precip)}%` : 'N/A')}
                         <PrecipChart
                           precipData={hourlyData.precip}
                           labels={hourlyData.labels}
@@ -309,11 +301,7 @@ export default function WeatherDashboard() {
                         />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {activeHourLabel && (
-                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
-                            {activeHourLabel} {getHourlyValueForHour(hourlyData.wind) !== null ? `· ${getHourlyValueForHour(hourlyData.wind)} mph` : '· N/A'}
-                          </div>
-                        )}
+                        {renderChartOverlay(getHourlyValueForHour(hourlyData.wind) !== null ? `${getHourlyValueForHour(hourlyData.wind)} mph` : 'N/A')}
                         <WindChart
                           windData={hourlyData.wind}
                           labels={hourlyData.labels}
@@ -325,12 +313,8 @@ export default function WeatherDashboard() {
                   )}
 
                   {tideData && (
-                    <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3 xl:col-span-2">
-                      {activeHourLabel && (
-                        <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
-                          {activeHourLabel} {activeTideValue !== null ? `· ${activeTideValue} ft` : '· N/A'}
-                        </div>
-                      )}
+                    <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                      {renderChartOverlay(activeTideValue !== null ? `${activeTideValue} ft` : 'N/A')}
                       <TideChart
                         tideData={tideData}
                         activeHour={activeChartHour}
@@ -340,7 +324,7 @@ export default function WeatherDashboard() {
                   )}
 
                   {tideStatus === 'loading' && (
-                    <div className="chart-container rounded-[12px] border border-white/15 bg-white/10 p-5 text-center xl:col-span-2">
+                    <div className="chart-container rounded-[12px] border border-white/15 bg-white/10 p-5 text-center">
                       Loading tide chart...
                     </div>
                   )}
