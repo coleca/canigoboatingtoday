@@ -76,7 +76,7 @@ export function getCommonOptions(title, labels, activeHour, onActiveHourChange) 
     plugins: {
       legend: { display: false },
       title: { display: true, text: title, color: 'white', font: { size: 16 } },
-      tooltip: { mode: 'index', intersect: false },
+      tooltip: { enabled: false },
       annotation: {
         annotations: buildActiveHourAnnotation(labels, activeHour),
       },

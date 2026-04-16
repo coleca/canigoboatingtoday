@@ -24,6 +24,10 @@ export default function WeatherDashboard() {
   const [tideStatus, setTideStatus] = useState('idle')
   const [activeChartHour, setActiveChartHour] = useState(null)
 
+  const clearActiveChartHour = () => {
+    setActiveChartHour(null)
+  }
+
   const getHourlyValueForHour = (series) => {
     if (activeChartHour === null || activeChartHour === undefined) return null
     if (!series) return null
@@ -96,13 +100,17 @@ export default function WeatherDashboard() {
       setTideStatus('loading')
       setTideData(null)
 
-      const forecast = await getNWSForecast(latitude, longitude)
+      const forecastPromise = getNWSForecast(latitude, longitude)
+      const tidePromise = getTideData(latitude, longitude)
+
+      const forecast = await forecastPromise
       setWeatherData(forecast)
       setSelectedDayIndex(0)
+      setActiveChartHour(null)
       setLoading(false)
 
       try {
-        const tides = await getTideData(latitude, longitude)
+        const tides = await tidePromise
         setTideData(tides)
         setTideStatus('ready')
       } catch {
@@ -167,6 +175,10 @@ export default function WeatherDashboard() {
     }
   }, [dailyPeriods.length, selectedDayIndex])
 
+  useEffect(() => {
+    setActiveChartHour(null)
+  }, [selectedDayIndex, locationName])
+
   if (isOffline) {
     return <div className="text-center p-8 text-xl">You are offline. Please check your internet connection.</div>
   }
@@ -176,7 +188,7 @@ export default function WeatherDashboard() {
 
     return (
       <div
-        className="pointer-events-none absolute top-12 z-10 -translate-x-1/2 rounded-xl border border-white/20 bg-[#245f8f]/90 px-3 py-2 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md"
+        className="pointer-events-none absolute top-12 z-10 -translate-x-1/2 rounded-xl border border-white/15 bg-black/70 px-3 py-2 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md"
         style={{ left: `${activeOverlayLeft}%` }}
       >
         <div className="text-[10px] uppercase tracking-[0.12em] text-white/70">{activeHourLabel}</div>
@@ -185,11 +197,28 @@ export default function WeatherDashboard() {
     )
   }
 
+  const renderChartContainer = (overlayValue, chart) => (
+    <div
+      className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3"
+      onMouseLeave={clearActiveChartHour}
+      onTouchEnd={clearActiveChartHour}
+      onTouchCancel={clearActiveChartHour}
+    >
+      {renderChartOverlay(overlayValue)}
+      {chart}
+    </div>
+  )
+
   return (
       <div className="w-full flex flex-col items-center justify-start min-h-screen pt-2 pb-4 text-white sm:pt-4">
         {loading && (
-            <div id="loader-overlay" className="visible flex fixed top-0 left-0 w-full h-full bg-black/50 justify-center items-center z-[1000]">
-                <div className="loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full w-[60px] h-[60px] animate-[spin_2s_linear_infinite]"></div>
+            <div
+              id="loader-overlay"
+              className={`visible flex fixed left-0 w-full justify-center items-center z-[1000] transition-all ${
+                weatherData ? 'top-4 h-auto bg-transparent pointer-events-none' : 'top-0 h-full bg-black/50'
+              }`}
+            >
+                <div className={`loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full animate-[spin_2s_linear_infinite] ${weatherData ? 'w-[36px] h-[36px]' : 'w-[60px] h-[60px]'}`}></div>
             </div>
         )}
         <div id="weather-alerts" className="content-width w-full max-w-[1400px] px-3 sm:px-4 mb-5"></div>
@@ -273,47 +302,52 @@ export default function WeatherDashboard() {
               <div id="charts-container" className="mt-[20px] flex flex-col gap-[15px]">
                   {hourlyData && (
                     <>
-                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {renderChartOverlay(getHourlyValueForHour(hourlyData.wave) !== null ? `${getHourlyValueForHour(hourlyData.wave)} ft` : 'N/A')}
+                      {renderChartContainer(
+                        getHourlyValueForHour(hourlyData.wave) !== null ? `${getHourlyValueForHour(hourlyData.wave)} ft` : 'N/A',
                         <WaveChart
                           waveData={hourlyData.wave}
                           labels={hourlyData.labels}
                           activeHour={activeChartHour}
                           onActiveHourChange={setActiveChartHour}
                         />
-                      </div>
-                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {renderChartOverlay(getHourlyValueForHour(hourlyData.temp) !== null ? `${getHourlyValueForHour(hourlyData.temp)}°F` : 'N/A')}
+                      )}
+                      {renderChartContainer(
+                        getHourlyValueForHour(hourlyData.temp) !== null ? `${getHourlyValueForHour(hourlyData.temp)}°F` : 'N/A',
                         <TempChart
                           tempData={hourlyData.temp}
                           labels={hourlyData.labels}
                           activeHour={activeChartHour}
                           onActiveHourChange={setActiveChartHour}
                         />
-                      </div>
-                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {renderChartOverlay(getHourlyValueForHour(hourlyData.precip) !== null ? `${getHourlyValueForHour(hourlyData.precip)}%` : 'N/A')}
+                      )}
+                      {renderChartContainer(
+                        getHourlyValueForHour(hourlyData.precip) !== null ? `${getHourlyValueForHour(hourlyData.precip)}%` : 'N/A',
                         <PrecipChart
                           precipData={hourlyData.precip}
                           labels={hourlyData.labels}
                           activeHour={activeChartHour}
                           onActiveHourChange={setActiveChartHour}
                         />
-                      </div>
-                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        {renderChartOverlay(getHourlyValueForHour(hourlyData.wind) !== null ? `${getHourlyValueForHour(hourlyData.wind)} mph` : 'N/A')}
+                      )}
+                      {renderChartContainer(
+                        getHourlyValueForHour(hourlyData.wind) !== null ? `${getHourlyValueForHour(hourlyData.wind)} mph` : 'N/A',
                         <WindChart
                           windData={hourlyData.wind}
                           labels={hourlyData.labels}
                           activeHour={activeChartHour}
                           onActiveHourChange={setActiveChartHour}
                         />
-                      </div>
+                      )}
                     </>
                   )}
 
                   {tideData && (
-                    <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                    <div
+                      className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3"
+                      onMouseLeave={clearActiveChartHour}
+                      onTouchEnd={clearActiveChartHour}
+                      onTouchCancel={clearActiveChartHour}
+                    >
                       {renderChartOverlay(activeTideValue !== null ? `${activeTideValue} ft` : 'N/A')}
                       <TideChart
                         tideData={tideData}
