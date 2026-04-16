@@ -9,7 +9,7 @@ import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
 import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
-import { parseWaveHeight } from '@/lib/forecastUtils'
+import { parseWaveHeight, parseWaveHeightValue } from '@/lib/forecastUtils'
 
 const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
@@ -30,6 +30,29 @@ export default function WeatherDashboard() {
 
   const clearActiveChartHour = () => {
     setActiveChartHour(null)
+  }
+
+  const loadCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      return
+    }
+
+    setError(null)
+    setLoading(true)
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        const resolvedLocationName = `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`
+        setLocation({ latitude, longitude })
+        setLocationName(resolvedLocationName)
+        fetchData(latitude, longitude, resolvedLocationName)
+      },
+      () => {
+        setError('Unable to get your current location.')
+        setLoading(false)
+      }
+    )
   }
 
   const getHourlyValueForHour = (series) => {
@@ -183,6 +206,22 @@ export default function WeatherDashboard() {
     return extractHourlyDataForDay(weatherData.gridData, selectedDateStr)
   }, [weatherData?.gridData, selectedDateStr])
 
+  const waveChartData = useMemo(() => {
+    if (!hourlyData) return null
+
+    const hasWaveSeriesData = hourlyData.wave.some((value) => value !== null && value !== undefined)
+    if (hasWaveSeriesData) {
+      return hourlyData.wave
+    }
+
+    const fallbackWaveValue = parseWaveHeightValue(dailyPeriods[selectedDayIndex]?.detailedForecast)
+    if (fallbackWaveValue === null) {
+      return hourlyData.wave
+    }
+
+    return hourlyData.wave.map(() => fallbackWaveValue)
+  }, [hourlyData, dailyPeriods, selectedDayIndex])
+
   const activeHourLabel = useMemo(() => {
     if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
     return hourlyData.labels[activeChartHour] ?? null
@@ -275,14 +314,31 @@ export default function WeatherDashboard() {
 
         <div id="location-container" className="text-center mb-5 w-full max-w-[1400px] px-3 sm:px-4">
             <form id="location-form" onSubmit={handleLocationSubmit} className="flex flex-col sm:flex-row justify-center gap-2.5 mb-2.5">
-                <input
-                  type="text"
-                  id="location-input"
-                  placeholder="Enter a location"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  className="p-[10px_15px] border border-white/50 rounded-[20px] bg-white/20 text-white text-[1em] w-full sm:w-[300px] placeholder:text-white/70"
-                />
+                <div className="relative w-full sm:w-[300px]">
+                  <input
+                    type="text"
+                    id="location-input"
+                    placeholder="Enter a location"
+                    value={locationInput}
+                    onChange={(e) => setLocationInput(e.target.value)}
+                    className="w-full rounded-[20px] border border-white/50 bg-white/20 py-[10px] pl-[15px] pr-[52px] text-[1em] text-white placeholder:text-white/70"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Use current location"
+                    onClick={loadCurrentLocation}
+                    className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/30"
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 2v4" />
+                      <path d="M12 18v4" />
+                      <path d="M2 12h4" />
+                      <path d="M18 12h4" />
+                      <circle cx="12" cy="12" r="3" />
+                      <circle cx="12" cy="12" r="8" />
+                    </svg>
+                  </button>
+                </div>
                 <button type="submit" className="p-[10px_20px] border-none rounded-[20px] bg-white text-[#005f73] text-[1em] font-semibold cursor-pointer transition-colors hover:bg-[#f0f8ff] hover:text-[#003459]">Get Weather</button>
             </form>
             <p id="current-location" className="text-[1.1em] font-light opacity-90">{locationName}</p>
@@ -351,9 +407,9 @@ export default function WeatherDashboard() {
                         />
                       )}
                       {renderChartContainer(
-                        getHourlyValueForHour(hourlyData.wave) !== null ? `${getHourlyValueForHour(hourlyData.wave)} ft` : 'N/A',
+                        getHourlyValueForHour(waveChartData) !== null ? `${getHourlyValueForHour(waveChartData)} ft` : 'N/A',
                         <WaveChart
-                          waveData={hourlyData.wave}
+                          waveData={waveChartData}
                           labels={hourlyData.labels}
                           activeHour={activeChartHour}
                           onActiveHourChange={setActiveChartHour}
