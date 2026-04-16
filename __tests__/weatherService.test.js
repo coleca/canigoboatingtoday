@@ -1,4 +1,4 @@
-import { getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getNWSForecast, getTideData } from '@/lib/weatherService'
 
 // Mock the global fetch function before all tests
 global.fetch = jest.fn()
@@ -8,6 +8,7 @@ describe('weatherService', () => {
   beforeEach(() => {
     fetch.mockClear()
     sessionStorage.clear()
+    localStorage.clear()
   })
 
   describe('getNWSForecast', () => {
@@ -186,6 +187,36 @@ describe('weatherService', () => {
 
     test('throws when coordinates are invalid', async () => {
       await expect(getTideData(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
+    })
+  })
+
+  describe('geocodeLocation', () => {
+    test('returns cached geocode results without refetching', async () => {
+      localStorage.setItem(
+        'geocode:san diego',
+        JSON.stringify({
+          timestamp: Date.now(),
+          payload: { name: 'San Diego', latitude: 32.7157, longitude: -117.1611 },
+        })
+      )
+
+      const location = await geocodeLocation('San Diego')
+
+      expect(location).toEqual({ name: 'San Diego', latitude: 32.7157, longitude: -117.1611 })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    test('fetches and caches geocode results', async () => {
+      fetch.mockResolvedValueOnce({
+        json: async () => ({
+          results: [{ name: 'Miami', latitude: 25.7617, longitude: -80.1918 }],
+        }),
+      })
+
+      const location = await geocodeLocation('Miami')
+
+      expect(location).toEqual({ name: 'Miami', latitude: 25.7617, longitude: -80.1918 })
+      expect(fetch).toHaveBeenCalledTimes(1)
     })
   })
 })
