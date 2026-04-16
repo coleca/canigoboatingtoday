@@ -3,6 +3,82 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Can I go boating today? App - E2E', () => {
   test('should load and display a complete weather forecast', async ({ page }) => {
+    const mockPointsData = {
+      properties: {
+        forecast: 'https://api.weather.gov/gridpoints/LOX/154,44/forecast',
+        forecastGridData: 'https://api.weather.gov/gridpoints/LOX/154,44',
+      },
+    }
+
+    const mockForecastData = {
+      properties: {
+        periods: [
+          {
+            name: 'Thursday',
+            isDaytime: true,
+            temperature: 72,
+            temperatureUnit: 'F',
+            shortForecast: 'Sunny',
+            detailedForecast: 'Sunny, with seas around 2 feet.',
+            startTime: '2026-04-16T09:00:00-07:00',
+            icon: 'https://api.weather.gov/icons/land/day/few?size=medium',
+          },
+          {
+            name: 'Tonight',
+            isDaytime: false,
+            temperature: 60,
+            temperatureUnit: 'F',
+            shortForecast: 'Mostly clear',
+            detailedForecast: 'Mostly clear, with seas around 1 foot.',
+            startTime: '2026-04-16T18:00:00-07:00',
+            icon: 'https://api.weather.gov/icons/land/night/few?size=medium',
+          },
+        ],
+      },
+    }
+
+    const mockGridData = {
+      properties: {
+        temperature: { values: [] },
+        windSpeed: { values: [] },
+        probabilityOfPrecipitation: { values: [] },
+        waveHeight: { values: [] },
+      },
+    }
+
+    const mockStations = {
+      stations: [{ id: '9410660', lat: 34.05, lng: -118.24, name: 'Los Angeles' }],
+    }
+
+    const mockTidePredictions = {
+      predictions: [
+        { t: '2026-04-16 00:00', v: '1.1' },
+        { t: '2026-04-16 06:00', v: '3.4' },
+        { t: '2026-04-16 12:00', v: '0.8' },
+        { t: '2026-04-16 18:00', v: '2.9' },
+      ],
+    }
+
+    await page.route('https://api.weather.gov/points/**', async (route) => {
+      await route.fulfill({ json: mockPointsData })
+    })
+
+    await page.route('https://api.weather.gov/gridpoints/LOX/154,44/forecast', async (route) => {
+      await route.fulfill({ json: mockForecastData })
+    })
+
+    await page.route('https://api.weather.gov/gridpoints/LOX/154,44', async (route) => {
+      await route.fulfill({ json: mockGridData })
+    })
+
+    await page.route('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions', async (route) => {
+      await route.fulfill({ json: mockStations })
+    })
+
+    await page.route('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter**', async (route) => {
+      await route.fulfill({ json: mockTidePredictions })
+    })
+
     // Navigate to the home page
     await page.goto('/')
 
@@ -15,8 +91,7 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.getByText(/Longitude: -118.2437/)).toBeVisible()
 
     // 2. Verify Day Forecasts
-    // Check that an abbreviated day header (e.g., "Thi" for This Afternoon, "Ton" for Tonight, etc.) is visible.
-    await expect(page.getByText(/Thi|Ton|Mon|Tue|Wed|Thu|Fri|Sat|Sun/).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Thu', exact: true })).toBeVisible()
 
     // 3. Verify Wave Forecast
     // Check that the wave forecast component has rendered and displays some value (even "N/A").
