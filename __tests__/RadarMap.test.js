@@ -38,8 +38,8 @@ describe('RadarMap', () => {
 
     // Verify the WMS layer is pointing to the correct NOAA service and layer
     const wmsLayer = screen.getByTestId('wms-layer')
-    expect(wmsLayer).toHaveAttribute('data-url', 'https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms')
-    expect(wmsLayer).toHaveAttribute('data-layers', 'CREF')
+    expect(wmsLayer).toHaveAttribute('data-url', 'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_cref_qcd/ows')
+    expect(wmsLayer).toHaveAttribute('data-layers', 'conus_cref_qcd')
   })
 
   test('renders a loading state if location is not provided', () => {

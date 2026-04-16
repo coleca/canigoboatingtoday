@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Can I Go Boating Today app icon</title>
+  <desc id="desc">A stylized white sailboat on blue water with a yellow sun.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f86c6" />
+      <stop offset="100%" stop-color="#0b5f93" />
+    </linearGradient>
+    <linearGradient id="sea" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0d6ea8" />
+      <stop offset="100%" stop-color="#07476c" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)" />
+  <circle cx="388" cy="118" r="48" fill="#ffd35a" />
+  <path d="M0 328c48 20 94 30 138 30 58 0 100-18 144-18 51 0 88 18 132 18 35 0 67-7 98-18v172H0z" fill="url(#sea)" />
+  <path d="M146 332h220l-22 40H170z" fill="#eef6fb" />
+  <path d="M248 138v194h-94z" fill="#ffffff" />
+  <path d="M264 170v162h80z" fill="#d7ebf7" />
+  <rect x="244" y="126" width="12" height="230" rx="6" fill="#eef6fb" />
+  <path d="M102 392c28-16 59-24 92-24s64 8 92 24c28 15 59 23 92 23s64-8 92-23v44H102z" fill="#56b7e2" opacity=".55" />
+</svg>

@@ -4,9 +4,9 @@ import React from 'react'
 import { MapContainer, TileLayer, WMSTileLayer } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// The URL for the NOAA radar Web Map Service (WMS)
-// This layer shows composite reflectivity, which is the standard radar view.
-const NOAA_RADAR_URL = 'https://opengeo.ncep.noaa.gov/geoserver/MRMS/wms'
+// The older MRMS WMS endpoint now returns 404s.
+// This GeoServer OWS endpoint serves the current CONUS composite reflectivity layer.
+const NOAA_RADAR_URL = 'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_cref_qcd/ows'
 
 /**
  * An interactive map component that displays a base map and a NOAA weather radar overlay.
@@ -30,10 +30,11 @@ function RadarMap({ location }) {
           />
           <WMSTileLayer
             url={NOAA_RADAR_URL}
-            layers="CREF" // Composite Reflectivity
+            layers="conus_cref_qcd"
             format="image/png"
             transparent={true}
             opacity={0.6}
+            version="1.3.0"
             attribution="NOAA/NWS"
           />
         </MapContainer>
