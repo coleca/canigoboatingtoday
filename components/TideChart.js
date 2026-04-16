@@ -11,7 +11,10 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from 'chart.js'
+import annotationPlugin from 'chartjs-plugin-annotation'
+import { getCommonOptions, getHoveredHourFromLabel } from './charts/HourlyCharts'
 
 // Register the necessary components for Chart.js
 ChartJS.register(
@@ -21,7 +24,9 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler,
+  annotationPlugin
 )
 
 // Pre-instantiate the formatter outside the component to avoid repeated initialization
@@ -36,7 +41,7 @@ const timeFormatter = new Intl.DateTimeFormat([], {
  * @param {{tideData: object}} props - The component props.
  * @param {object} props.tideData - The raw tide prediction data from the NOAA API.
  */
-export default function TideChart({ tideData }) {
+export default function TideChart({ tideData, activeHour, onActiveHourChange }) {
   // The API returns an object with a 'predictions' array
   const predictions = useMemo(() => tideData?.predictions || [], [tideData?.predictions])
 
@@ -59,41 +64,32 @@ export default function TideChart({ tideData }) {
         {
           label: 'Tide Height (ft)',
           data,
-          borderColor: 'rgb(54, 162, 235)',
-          backgroundColor: 'rgba(54, 162, 235, 0.5)',
+          borderColor: 'rgba(117, 214, 255, 0.95)',
+          backgroundColor: 'rgba(117, 214, 255, 0.22)',
+          fill: true,
           tension: 0.4, // Make the line smooth
         },
       ],
     }
   }, [predictions])
 
-  const options = useMemo(
-    () => ({
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top',
-        },
-        title: {
-          display: true,
-          text: "Today's Tide Predictions",
-        },
-      },
-      scales: {
-        y: {
-          title: {
-            display: true,
-            text: 'Height in Feet (MLLW)',
-          },
-        },
-      },
-    }),
-    []
-  )
+  const options = useMemo(() => {
+    const opts = getCommonOptions("Today's Tide Predictions", chartData.labels, activeHour, null)
+    opts.onHover = (_event, elements) => {
+      if (!onActiveHourChange) return
+      const hoveredLabel = elements[0] ? chartData.labels[elements[0].index] : null
+      onActiveHourChange(hoveredLabel ? getHoveredHourFromLabel(hoveredLabel) : null)
+    }
+    opts.scales.y.title = {
+      display: true,
+      text: 'Height in Feet (MLLW)',
+      color: 'rgba(255, 255, 255, 0.88)',
+    }
+    return opts
+  }, [chartData.labels, activeHour, onActiveHourChange])
 
   return (
-    <div style={{ position: 'relative', height: '400px' }}>
+    <div style={{ position: 'relative', height: '100%' }}>
       <Line options={options} data={chartData} />
     </div>
   )

@@ -22,6 +22,7 @@ export default function WeatherDashboard() {
   const [locationInput, setLocationInput] = useState('')
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [tideStatus, setTideStatus] = useState('idle')
+  const [activeChartHour, setActiveChartHour] = useState(null)
 
   useEffect(() => {
     if (!navigator.onLine) {
@@ -173,15 +174,15 @@ export default function WeatherDashboard() {
         {weatherData && (
           <div id="weather-forecast" className="w-[95%] max-w-[1400px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-5 mt-5">
             {dailyPeriods.map((period, index) => {
-              let iconSrc = period.icon;
+              let iconSrc = '/icons/sun.svg'
               const shortForecastLower = period.shortForecast.toLowerCase();
               if (shortForecastLower.includes('cloud')) iconSrc = '/icons/cloudy.svg';
+              else if (shortForecastLower.includes('clear')) iconSrc = '/icons/sun.svg';
               else if (shortForecastLower.includes('sun')) iconSrc = '/icons/sun.svg';
               else if (shortForecastLower.includes('rain') || shortForecastLower.includes('shower')) iconSrc = '/icons/rain.svg';
               else if (shortForecastLower.includes('storm')) iconSrc = '/icons/thunderstorm.svg';
               else if (shortForecastLower.includes('snow')) iconSrc = '/icons/snow.svg';
               else if (shortForecastLower.includes('fog')) iconSrc = '/icons/fog.svg';
-              else iconSrc = '/icons/sun.svg';
 
               const isSelected = index === selectedDayIndex;
 
@@ -238,23 +239,47 @@ export default function WeatherDashboard() {
                   {hourlyData && (
                     <>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        <WaveChart waveData={hourlyData.wave} labels={hourlyData.labels} />
+                        <WaveChart
+                          waveData={hourlyData.wave}
+                          labels={hourlyData.labels}
+                          activeHour={activeChartHour}
+                          onActiveHourChange={setActiveChartHour}
+                        />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        <TempChart tempData={hourlyData.temp} labels={hourlyData.labels} />
+                        <TempChart
+                          tempData={hourlyData.temp}
+                          labels={hourlyData.labels}
+                          activeHour={activeChartHour}
+                          onActiveHourChange={setActiveChartHour}
+                        />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        <PrecipChart precipData={hourlyData.precip} labels={hourlyData.labels} />
+                        <PrecipChart
+                          precipData={hourlyData.precip}
+                          labels={hourlyData.labels}
+                          activeHour={activeChartHour}
+                          onActiveHourChange={setActiveChartHour}
+                        />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
-                        <WindChart windData={hourlyData.wind} labels={hourlyData.labels} />
+                        <WindChart
+                          windData={hourlyData.wind}
+                          labels={hourlyData.labels}
+                          activeHour={activeChartHour}
+                          onActiveHourChange={setActiveChartHour}
+                        />
                       </div>
                     </>
                   )}
 
                   {tideData && (
                     <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3 xl:col-span-2">
-                      <TideChart tideData={tideData} />
+                      <TideChart
+                        tideData={tideData}
+                        activeHour={activeChartHour}
+                        onActiveHourChange={setActiveChartHour}
+                      />
                     </div>
                   )}
 

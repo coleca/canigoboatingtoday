@@ -27,31 +27,67 @@ ChartJS.register(
   annotationPlugin
 )
 
-const getCommonOptions = (title) => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: { display: false },
-        title: { display: true, text: title, color: 'white', font: { size: 16 } },
-        tooltip: { mode: 'index', intersect: false }
-    },
-    scales: {
-        x: { ticks: { color: 'rgba(255, 255, 255, 0.8)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-        y: { ticks: { color: 'rgba(255, 255, 255, 0.8)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
-    }
-})
+const CHART_TEXT_COLOR = 'rgba(255, 255, 255, 0.88)'
+const CHART_GRID_COLOR = 'rgba(255, 255, 255, 0.12)'
+const CHART_LINE_COLOR = 'rgba(255, 255, 255, 0.45)'
 
-// Using a 2-digit hour array mapping is simplified here for now.
-const getLabels = (startHour) => {
-    return Array.from({length: 24}).map((_, i) => {
-        let hr = (startHour + i) % 24;
-        let ampm = hr >= 12 ? 'PM' : 'AM';
-        let dispHr = hr % 12 || 12;
-        return `${dispHr} ${ampm}`;
-    })
+export function getHoveredHourFromLabel(label) {
+  if (!label) return null
+  const trimmed = String(label).trim()
+  const match = trimmed.match(/^(\d{1,2})(?::\d{2})?\s*(AM|PM)$/i)
+
+  if (!match) return null
+
+  const rawHour = Number(match[1]) % 12
+  const meridiem = match[2].toUpperCase()
+  return meridiem === 'PM' ? rawHour + 12 : rawHour
 }
 
-export function WindChart({ windData, labels }) {
+export function buildActiveHourAnnotation(labels, activeHour) {
+  if (activeHour === null || activeHour === undefined) return {}
+
+  const activeLabel = labels.find((label) => getHoveredHourFromLabel(label) === activeHour)
+  if (!activeLabel) return {}
+
+  return {
+    activeHourLine: {
+      type: 'line',
+      xMin: activeLabel,
+      xMax: activeLabel,
+      borderColor: CHART_LINE_COLOR,
+      borderWidth: 2,
+    },
+  }
+}
+
+export function getCommonOptions(title, labels, activeHour, onActiveHourChange) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    onHover: (_event, elements) => {
+      if (!onActiveHourChange) return
+      onActiveHourChange(elements[0]?.index ?? null)
+    },
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: title, color: 'white', font: { size: 16 } },
+      tooltip: { mode: 'index', intersect: false },
+      annotation: {
+        annotations: buildActiveHourAnnotation(labels, activeHour),
+      },
+    },
+    scales: {
+      x: { ticks: { color: CHART_TEXT_COLOR }, grid: { color: CHART_GRID_COLOR } },
+      y: { ticks: { color: CHART_TEXT_COLOR }, grid: { color: CHART_GRID_COLOR } },
+    },
+  }
+}
+
+export function WindChart({ windData, labels, activeHour, onActiveHourChange }) {
     const data = useMemo(() => ({
         labels,
         datasets: [{
@@ -65,15 +101,15 @@ export function WindChart({ windData, labels }) {
     }), [windData, labels])
 
     const options = useMemo(() => {
-        const opts = getCommonOptions('Wind Speed (mph)');
-        opts.scales.y.min = 0;
-        return opts;
-    }, [])
+        const opts = getCommonOptions('Wind Speed (mph)', labels, activeHour, onActiveHourChange)
+        opts.scales.y.min = 0
+        return opts
+    }, [labels, activeHour, onActiveHourChange])
 
     return <Line data={data} options={options} />
 }
 
-export function PrecipChart({ precipData, labels }) {
+export function PrecipChart({ precipData, labels, activeHour, onActiveHourChange }) {
     const data = useMemo(() => ({
         labels,
         datasets: [{
@@ -87,16 +123,16 @@ export function PrecipChart({ precipData, labels }) {
     }), [precipData, labels])
 
     const options = useMemo(() => {
-        const opts = getCommonOptions('Precipitation (%)');
-        opts.scales.y.min = 0;
-        opts.scales.y.max = 100;
-        return opts;
-    }, [])
+        const opts = getCommonOptions('Precipitation (%)', labels, activeHour, onActiveHourChange)
+        opts.scales.y.min = 0
+        opts.scales.y.max = 100
+        return opts
+    }, [labels, activeHour, onActiveHourChange])
 
     return <Line data={data} options={options} />
 }
 
-export function TempChart({ tempData, labels }) {
+export function TempChart({ tempData, labels, activeHour, onActiveHourChange }) {
     const data = useMemo(() => ({
         labels,
         datasets: [{
@@ -109,12 +145,15 @@ export function TempChart({ tempData, labels }) {
         }]
     }), [tempData, labels])
 
-    const options = useMemo(() => getCommonOptions('Temperature (°F)'), [])
+    const options = useMemo(
+      () => getCommonOptions('Temperature (°F)', labels, activeHour, onActiveHourChange),
+      [labels, activeHour, onActiveHourChange]
+    )
 
     return <Line data={data} options={options} />
 }
 
-export function WaveChart({ waveData, labels }) {
+export function WaveChart({ waveData, labels, activeHour, onActiveHourChange }) {
     const data = useMemo(() => ({
         labels,
         datasets: [{
@@ -128,10 +167,10 @@ export function WaveChart({ waveData, labels }) {
     }), [waveData, labels])
 
     const options = useMemo(() => {
-        const opts = getCommonOptions('Wave Height (ft)');
-        opts.scales.y.min = 0;
-        return opts;
-    }, [])
+        const opts = getCommonOptions('Wave Height (ft)', labels, activeHour, onActiveHourChange)
+        opts.scales.y.min = 0
+        return opts
+    }, [labels, activeHour, onActiveHourChange])
 
     return <Line data={data} options={options} />
 }
