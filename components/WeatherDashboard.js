@@ -24,6 +24,24 @@ export default function WeatherDashboard() {
   const [tideStatus, setTideStatus] = useState('idle')
   const [activeChartHour, setActiveChartHour] = useState(null)
 
+  const getHourlyValueForHour = (series) => {
+    if (activeChartHour === null || activeChartHour === undefined) return null
+    if (!series) return null
+    const value = series[activeChartHour]
+    return value === null || value === undefined ? null : value
+  }
+
+  const activeTideValue = useMemo(() => {
+    if (activeChartHour === null || activeChartHour === undefined || !tideData?.predictions?.length) return null
+
+    const matchingPrediction = tideData.predictions.find((prediction) => {
+      const predictionHour = new Date(prediction.t.replace(' ', 'T')).getHours()
+      return predictionHour === activeChartHour
+    })
+
+    return matchingPrediction?.v ?? null
+  }, [activeChartHour, tideData?.predictions])
+
   useEffect(() => {
     if (!navigator.onLine) {
       setIsOffline(true)
@@ -124,6 +142,11 @@ export default function WeatherDashboard() {
     return extractHourlyDataForDay(weatherData.gridData, selectedDateStr)
   }, [weatherData?.gridData, selectedDateStr])
 
+  const activeHourLabel = useMemo(() => {
+    if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
+    return hourlyData.labels[activeChartHour] ?? null
+  }, [activeChartHour, hourlyData?.labels])
+
   useEffect(() => {
     if (selectedDayIndex >= dailyPeriods.length && dailyPeriods.length > 0) {
       setSelectedDayIndex(0)
@@ -135,34 +158,34 @@ export default function WeatherDashboard() {
   }
 
   return (
-      <div className="w-full flex flex-col items-center justify-start min-h-screen pt-4 pb-4 text-white">
+      <div className="w-full flex flex-col items-center justify-start min-h-screen pt-2 pb-4 text-white sm:pt-4">
         {loading && (
             <div id="loader-overlay" className="visible flex fixed top-0 left-0 w-full h-full bg-black/50 justify-center items-center z-[1000]">
                 <div className="loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full w-[60px] h-[60px] animate-[spin_2s_linear_infinite]"></div>
             </div>
         )}
-        <div id="weather-alerts" className="content-width w-[95%] max-w-[1400px] mx-auto mb-5"></div>
-        <div className="title-container content-width w-[95%] max-w-[1400px] mx-auto flex items-center justify-center gap-5 mb-5 mt-8">
+        <div id="weather-alerts" className="content-width w-full max-w-[1400px] px-3 sm:px-4 mb-5"></div>
+        <div className="title-container content-width w-full max-w-[1400px] px-3 sm:px-4 mx-auto flex items-center justify-center gap-3 sm:gap-5 mb-4 mt-5 sm:mt-8">
           <svg className="boat-icon w-[60px] h-[60px] text-white drop-shadow-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor">
             <path d="M20 80h60v10H20z"/>
             <path d="M30 70h40l10 10H20z"/>
             <path d="M50 20l-20 50h20z"/>
           </svg>
-          <h1 className="text-[2.5em] font-bold" style={{textShadow: "2px 2px 4px rgba(0,0,0,0.2)"}}>Can I go boating today?</h1>
+          <h1 className="text-[1.9em] sm:text-[2.5em] font-bold text-center" style={{textShadow: "2px 2px 4px rgba(0,0,0,0.2)"}}>Can I go boating today?</h1>
           <svg id="settings-icon" className="settings-icon w-[30px] h-[30px] cursor-pointer transition-transform hover:rotate-45 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19.4 11.6c-.2-.5-.4-1-.7-1.3l1.5-1.5c.4-.4.4-1 0-1.4l-2.8-2.8c-.4-.4-1-.4-1.4 0l-1.5 1.5c-.3-.3-.8-.5-1.3-.7l-.3-2.1c-.1-.6-.6-1-1.2-1H9.4c-.6 0-1.1.4-1.2 1l-.3 2.1c-.5.2-1 .4-1.3.7l-1.5-1.5c-.4-.4-1-.4-1.4 0L1.1 8.9c-.4.4-.4 1 0 1.4l1.5 1.5c-.3.3-.5.8-.7 1.3l-2.1.3c-.6.1-1 .6-1 1.2v2.8c0 .6.4 1.1 1 1.2l2.1.3c.2.5.4 1 .7 1.3l-1.5 1.5c-.4.4-.4 1 0 1.4l2.8 2.8c.4.4 1 .4 1.4 0l1.5-1.5c.3.3.8.5 1.3.7l.3 2.1c.1.6.6 1 1.2 1h2.8c.6 0 1.1-.4 1.2-1l.3-2.1c.5-.2 1-.4 1.3-.7l1.5 1.5c.4.4 1 .4 1.4 0l2.8-2.8c-.4-.4.4-1 0-1.4l-1.5-1.5c.3-.3-.5-.8-.7-1.3l2.1-.3c.6-.1 1-.6 1-1.2v-2.8c0-.6-.4-1.1-1-1.2l-2.1-.3zM12 15.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
           </svg>
         </div>
 
-        <div id="location-container" className="text-center mb-5 w-[95%] max-w-[1400px]">
-            <form id="location-form" onSubmit={handleLocationSubmit} className="flex justify-center gap-2.5 mb-2.5">
+        <div id="location-container" className="text-center mb-5 w-full max-w-[1400px] px-3 sm:px-4">
+            <form id="location-form" onSubmit={handleLocationSubmit} className="flex flex-col sm:flex-row justify-center gap-2.5 mb-2.5">
                 <input
                   type="text"
                   id="location-input"
                   placeholder="Enter a location"
                   value={locationInput}
                   onChange={(e) => setLocationInput(e.target.value)}
-                  className="p-[10px_15px] border border-white/50 rounded-[20px] bg-white/20 text-white text-[1em] w-[300px] placeholder:text-white/70"
+                  className="p-[10px_15px] border border-white/50 rounded-[20px] bg-white/20 text-white text-[1em] w-full sm:w-[300px] placeholder:text-white/70"
                 />
                 <button type="submit" className="p-[10px_20px] border-none rounded-[20px] bg-white text-[#005f73] text-[1em] font-semibold cursor-pointer transition-colors hover:bg-[#f0f8ff] hover:text-[#003459]">Get Weather</button>
             </form>
@@ -172,7 +195,7 @@ export default function WeatherDashboard() {
         {error && <div className="text-center p-4 text-red-200">{error}</div>}
 
         {weatherData && (
-          <div id="weather-forecast" className="w-[95%] max-w-[1400px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-5 mt-5">
+          <div id="weather-forecast" className="w-full max-w-[1400px] px-3 sm:px-4 mt-5 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 xl:grid-cols-7 lg:overflow-visible">
             {dailyPeriods.map((period, index) => {
               let iconSrc = '/icons/sun.svg'
               const shortForecastLower = period.shortForecast.toLowerCase();
@@ -189,7 +212,7 @@ export default function WeatherDashboard() {
               return (
               <div
                   key={index}
-                  className={`day-forecast flex flex-col justify-between h-full bg-white/20 border rounded-[15px] p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
+                  className={`day-forecast min-w-[170px] sm:min-w-[190px] lg:min-w-0 flex flex-col justify-between h-full bg-white/20 border rounded-[15px] p-4 sm:p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 snap-start ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
                   onClick={() => setSelectedDayIndex(index)}
               >
                   <div>
@@ -225,7 +248,8 @@ export default function WeatherDashboard() {
         )}
 
         {weatherData && location && (
-          <div id="hourly-forecast-container" className="w-[95%] max-w-[1400px] mt-[30px] p-[25px] bg-white/20 rounded-[15px] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px]" style={{display: 'block'}}>
+          <div id="hourly-forecast-container" className="w-full max-w-[1400px] mt-[30px] px-3 sm:px-4">
+            <div className="p-[18px] sm:p-[25px] bg-white/20 rounded-[15px] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px]" style={{display: 'block'}}>
               <h2 id="hourly-forecast-day" className="text-[1.8em] text-center mb-[20px]">{dailyPeriods[selectedDayIndex]?.name}</h2>
               <div className="p-4 bg-white/20 rounded-[10px] shadow text-center mb-4 border border-white/20">
                   <p className="text-[1.1em]"><span className="font-semibold">{dailyPeriods[selectedDayIndex]?.name}:</span> {dailyPeriods[selectedDayIndex]?.detailedForecast}</p>
@@ -239,6 +263,11 @@ export default function WeatherDashboard() {
                   {hourlyData && (
                     <>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        {activeHourLabel && (
+                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
+                            {activeHourLabel} {getHourlyValueForHour(hourlyData.wave) !== null ? `· ${getHourlyValueForHour(hourlyData.wave)} ft` : '· N/A'}
+                          </div>
+                        )}
                         <WaveChart
                           waveData={hourlyData.wave}
                           labels={hourlyData.labels}
@@ -247,6 +276,11 @@ export default function WeatherDashboard() {
                         />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        {activeHourLabel && (
+                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
+                            {activeHourLabel} {getHourlyValueForHour(hourlyData.temp) !== null ? `· ${getHourlyValueForHour(hourlyData.temp)}°F` : '· N/A'}
+                          </div>
+                        )}
                         <TempChart
                           tempData={hourlyData.temp}
                           labels={hourlyData.labels}
@@ -255,6 +289,11 @@ export default function WeatherDashboard() {
                         />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        {activeHourLabel && (
+                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
+                            {activeHourLabel} {getHourlyValueForHour(hourlyData.precip) !== null ? `· ${getHourlyValueForHour(hourlyData.precip)}%` : '· N/A'}
+                          </div>
+                        )}
                         <PrecipChart
                           precipData={hourlyData.precip}
                           labels={hourlyData.labels}
@@ -263,6 +302,11 @@ export default function WeatherDashboard() {
                         />
                       </div>
                       <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        {activeHourLabel && (
+                          <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
+                            {activeHourLabel} {getHourlyValueForHour(hourlyData.wind) !== null ? `· ${getHourlyValueForHour(hourlyData.wind)} mph` : '· N/A'}
+                          </div>
+                        )}
                         <WindChart
                           windData={hourlyData.wind}
                           labels={hourlyData.labels}
@@ -275,6 +319,11 @@ export default function WeatherDashboard() {
 
                   {tideData && (
                     <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3 xl:col-span-2">
+                      {activeHourLabel && (
+                        <div className="absolute right-3 top-3 z-10 rounded-full bg-black/25 px-3 py-1 text-xs font-semibold">
+                          {activeHourLabel} {activeTideValue !== null ? `· ${activeTideValue} ft` : '· N/A'}
+                        </div>
+                      )}
                       <TideChart
                         tideData={tideData}
                         activeHour={activeChartHour}
@@ -289,17 +338,22 @@ export default function WeatherDashboard() {
                     </div>
                   )}
               </div>
+            </div>
           </div>
         )}
 
         {location && (
-          <div id="radar-map-container" className="w-[95%] max-w-[1400px] mt-[30px] rounded-[15px] overflow-hidden shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] h-[400px] mx-auto">
+          <div id="radar-map-container" className="w-full max-w-[1400px] px-3 sm:px-4 mt-[30px] mx-auto">
+            <div className="rounded-[15px] overflow-hidden shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] h-[400px]">
               <DynamicRadarMap location={location} />
+            </div>
           </div>
         )}
 
-        <div className="disclaimer w-[95%] max-w-[1400px] mx-auto mt-[30px] p-[15px] bg-black/20 rounded-[10px] text-center text-[0.9em] mb-8">
+        <div className="disclaimer w-full max-w-[1400px] px-3 sm:px-4 mx-auto mt-[30px] mb-8">
+          <div className="p-[15px] bg-black/20 rounded-[10px] text-center text-[0.9em]">
             <p>This application has been optimized for marine forecasting, but boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.</p>
+          </div>
         </div>
       </div>
   )
