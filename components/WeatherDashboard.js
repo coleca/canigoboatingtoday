@@ -3,13 +3,16 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getNWSForecast, getTideData } from '@/lib/weatherService'
 import TideChart from './TideChart'
 import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
 import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
 import { parseWaveHeight } from '@/lib/forecastUtils'
+
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
+const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
@@ -23,6 +26,7 @@ export default function WeatherDashboard() {
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [tideStatus, setTideStatus] = useState('idle')
   const [activeChartHour, setActiveChartHour] = useState(null)
+  const [shouldLoadRadar, setShouldLoadRadar] = useState(false)
 
   const clearActiveChartHour = () => {
     setActiveChartHour(null)
@@ -61,9 +65,18 @@ export default function WeatherDashboard() {
   }, [activeChartHour])
 
   useEffect(() => {
+    const cachedDashboard = getCachedDashboardState()
+    if (cachedDashboard) {
+      setLocation(cachedDashboard.location ?? null)
+      setWeatherData(cachedDashboard.weatherData ?? null)
+      setTideData(cachedDashboard.tideData ?? null)
+      setLocationName(cachedDashboard.locationName ?? '')
+      setTideStatus(cachedDashboard.tideStatus ?? 'idle')
+      setLoading(false)
+    }
+
     if (!navigator.onLine) {
       setIsOffline(true)
-      setLoading(false)
       return
     }
 
@@ -73,7 +86,7 @@ export default function WeatherDashboard() {
           const { latitude, longitude } = position.coords
           setLocation({ latitude, longitude })
           setLocationName(`Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`)
-          fetchData(latitude, longitude)
+          fetchData(latitude, longitude, `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`)
         },
         () => {
           // Default to New York if geolocation fails
@@ -81,7 +94,7 @@ export default function WeatherDashboard() {
           const defaultLon = -74.0060
           setLocation({ latitude: defaultLat, longitude: defaultLon })
           setLocationName(`New York`)
-          fetchData(defaultLat, defaultLon)
+          fetchData(defaultLat, defaultLon, 'New York')
         }
       )
     } else {
@@ -89,11 +102,11 @@ export default function WeatherDashboard() {
       const defaultLon = -74.0060
       setLocation({ latitude: defaultLat, longitude: defaultLon })
       setLocationName(`New York`)
-      fetchData(defaultLat, defaultLon)
+      fetchData(defaultLat, defaultLon, 'New York')
     }
   }, [])
 
-  const fetchData = async (latitude, longitude) => {
+  const fetchData = async (latitude, longitude, resolvedLocationName = locationName) => {
     try {
       setLoading(true)
       setError(null)
@@ -113,8 +126,22 @@ export default function WeatherDashboard() {
         const tides = await tidePromise
         setTideData(tides)
         setTideStatus('ready')
+        cacheDashboardState({
+          location: { latitude, longitude },
+          locationName: resolvedLocationName,
+          weatherData: forecast,
+          tideData: tides,
+          tideStatus: 'ready',
+        })
       } catch {
         setTideStatus('error')
+        cacheDashboardState({
+          location: { latitude, longitude },
+          locationName: resolvedLocationName,
+          weatherData: forecast,
+          tideData: null,
+          tideStatus: 'error',
+        })
       }
     } catch (err) {
       setWeatherData(null)
@@ -133,20 +160,12 @@ export default function WeatherDashboard() {
     setError(null)
 
     try {
-      const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationInput)}&count=1&language=en&format=json`)
-      const data = await response.json()
-
-      if (data.results && data.results.length > 0) {
-        const loc = data.results[0]
-        setLocation({ latitude: loc.latitude, longitude: loc.longitude })
-        setLocationName(loc.name)
-        await fetchData(loc.latitude, loc.longitude)
-      } else {
-        setError('Could not find location.')
-        setLoading(false)
-      }
-    } catch {
-      setError('Error geocoding location.')
+      const loc = await geocodeLocation(locationInput)
+      setLocation({ latitude: loc.latitude, longitude: loc.longitude })
+      setLocationName(loc.name)
+      await fetchData(loc.latitude, loc.longitude, loc.name)
+    } catch (err) {
+      setError(err.message || 'Error geocoding location.')
       setLoading(false)
     }
   }
@@ -178,6 +197,26 @@ export default function WeatherDashboard() {
   useEffect(() => {
     setActiveChartHour(null)
   }, [selectedDayIndex, locationName])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || shouldLoadRadar) return undefined
+
+    const radarContainer = document.getElementById('radar-map-container')
+    if (!radarContainer) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoadRadar(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '300px 0px' }
+    )
+
+    observer.observe(radarContainer)
+    return () => observer.disconnect()
+  }, [shouldLoadRadar, location])
 
   if (isOffline) {
     return <div className="text-center p-8 text-xl">You are offline. Please check your internet connection.</div>
@@ -303,6 +342,15 @@ export default function WeatherDashboard() {
                   {hourlyData && (
                     <>
                       {renderChartContainer(
+                        getHourlyValueForHour(hourlyData.wind) !== null ? `${getHourlyValueForHour(hourlyData.wind)} mph` : 'N/A',
+                        <WindChart
+                          windData={hourlyData.wind}
+                          labels={hourlyData.labels}
+                          activeHour={activeChartHour}
+                          onActiveHourChange={setActiveChartHour}
+                        />
+                      )}
+                      {renderChartContainer(
                         getHourlyValueForHour(hourlyData.wave) !== null ? `${getHourlyValueForHour(hourlyData.wave)} ft` : 'N/A',
                         <WaveChart
                           waveData={hourlyData.wave}
@@ -324,15 +372,6 @@ export default function WeatherDashboard() {
                         getHourlyValueForHour(hourlyData.precip) !== null ? `${getHourlyValueForHour(hourlyData.precip)}%` : 'N/A',
                         <PrecipChart
                           precipData={hourlyData.precip}
-                          labels={hourlyData.labels}
-                          activeHour={activeChartHour}
-                          onActiveHourChange={setActiveChartHour}
-                        />
-                      )}
-                      {renderChartContainer(
-                        getHourlyValueForHour(hourlyData.wind) !== null ? `${getHourlyValueForHour(hourlyData.wind)} mph` : 'N/A',
-                        <WindChart
-                          windData={hourlyData.wind}
                           labels={hourlyData.labels}
                           activeHour={activeChartHour}
                           onActiveHourChange={setActiveChartHour}
@@ -370,16 +409,60 @@ export default function WeatherDashboard() {
         {location && (
           <div id="radar-map-container" className="w-full max-w-[1400px] px-3 sm:px-4 mt-[30px] mx-auto">
             <div className="rounded-[15px] overflow-hidden shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] h-[400px]">
-              <DynamicRadarMap location={location} />
+              {shouldLoadRadar ? (
+                <DynamicRadarMap location={location} />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-white/10 text-center text-white/85">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Weather Radar</h2>
+                    <p className="mt-3 text-sm">Radar will load as you scroll near it.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         <div className="disclaimer w-full max-w-[1400px] px-3 sm:px-4 mx-auto mt-[30px] mb-8">
           <div className="p-[15px] bg-black/20 rounded-[10px] text-center text-[0.9em]">
-            <p>This application has been optimized for marine forecasting, but boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.</p>
+            <p>This application has been optimized for marine forecasting and is currently designed only for coastal areas of the United States. Boaters should use their own judgement, consult multiple sources, and abide by all local and federal maritime laws. The creators of this application are not liable for any damages or losses resulting from its use.</p>
           </div>
         </div>
       </div>
   )
+}
+
+function getCachedDashboardState() {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const cachedValue = localStorage.getItem(DASHBOARD_CACHE_KEY)
+    if (!cachedValue) return null
+
+    const parsed = JSON.parse(cachedValue)
+    if (Date.now() - parsed.timestamp > DASHBOARD_CACHE_MAX_AGE_MS) {
+      localStorage.removeItem(DASHBOARD_CACHE_KEY)
+      return null
+    }
+
+    return parsed.payload
+  } catch {
+    return null
+  }
+}
+
+function cacheDashboardState(payload) {
+  if (typeof window === 'undefined') return
+
+  try {
+    localStorage.setItem(
+      DASHBOARD_CACHE_KEY,
+      JSON.stringify({
+        timestamp: Date.now(),
+        payload,
+      })
+    )
+  } catch {
+    // Ignore cache write errors so the app remains interactive.
+  }
 }

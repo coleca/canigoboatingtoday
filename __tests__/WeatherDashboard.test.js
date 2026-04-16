@@ -14,6 +14,11 @@ jest.mock('@/components/DynamicRadarMap', () => () => <div data-testid="radar-ma
 describe('WeatherDashboard', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    global.IntersectionObserver = jest.fn(() => ({
+      observe: jest.fn(),
+      disconnect: jest.fn(),
+      unobserve: jest.fn(),
+    }))
   })
 
   test('renders initial layout properly', () => {
