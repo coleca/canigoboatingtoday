@@ -7,6 +7,7 @@ describe('weatherService', () => {
   // Clear all mock implementations and call counts before each test
   beforeEach(() => {
     fetch.mockClear()
+    sessionStorage.clear()
   })
 
   describe('getNWSForecast', () => {
@@ -75,6 +76,21 @@ describe('weatherService', () => {
           'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
         },
       })
+    })
+
+    test('returns cached forecast data without refetching', async () => {
+      sessionStorage.setItem(
+        'forecast:34.05,-118.24',
+        JSON.stringify({
+          timestamp: Date.now(),
+          payload: { periods: [{ name: 'Cached Today' }], gridData: { cached: true } },
+        })
+      )
+
+      const forecast = await getNWSForecast(latitude, longitude)
+
+      expect(forecast).toEqual({ periods: [{ name: 'Cached Today' }], gridData: { cached: true } })
+      expect(fetch).not.toHaveBeenCalled()
     })
 
 
@@ -149,6 +165,23 @@ describe('weatherService', () => {
         predictions: [{ t: '2026-04-16 12:00', v: '2.4' }],
       })
       expect(fetch).toHaveBeenCalledTimes(3)
+    })
+
+    test('returns cached tide data without refetching', async () => {
+      sessionStorage.setItem(
+        'tideData:34.05,-118.24',
+        JSON.stringify({
+          timestamp: Date.now(),
+          payload: { predictions: [{ t: '2026-04-16 13:00', v: '1.9' }] },
+        })
+      )
+
+      const tideData = await getTideData(34.0522, -118.2437)
+
+      expect(tideData).toEqual({
+        predictions: [{ t: '2026-04-16 13:00', v: '1.9' }],
+      })
+      expect(fetch).not.toHaveBeenCalled()
     })
 
     test('throws when coordinates are invalid', async () => {
