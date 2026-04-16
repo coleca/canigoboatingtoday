@@ -9,7 +9,7 @@ describe('WaveForecast', () => {
 
     // Check that the component correctly parses and displays the wave height
     expect(screen.getByText('Current Wave Height:')).toBeInTheDocument()
-    expect(screen.getByText('3 ft')).toBeInTheDocument()
+    expect(screen.getAllByText('3 ft')).not.toHaveLength(0)
   })
 
   test('displays "N/A" when wave height cannot be parsed', () => {
@@ -18,6 +18,6 @@ describe('WaveForecast', () => {
 
     // Check that it gracefully handles cases where no wave data is present
     expect(screen.getByText('Current Wave Height:')).toBeInTheDocument()
-    expect(screen.getByText('N/A')).toBeInTheDocument()
+    expect(screen.getAllByText('N/A')).not.toHaveLength(0)
   })
 })

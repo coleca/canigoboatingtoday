@@ -34,12 +34,19 @@ export default function WeatherDashboard() {
   const activeTideValue = useMemo(() => {
     if (activeChartHour === null || activeChartHour === undefined || !tideData?.predictions?.length) return null
 
-    const matchingPrediction = tideData.predictions.find((prediction) => {
-      const predictionHour = new Date(prediction.t.replace(' ', 'T')).getHours()
-      return predictionHour === activeChartHour
-    })
+    let closestPrediction = null
+    let closestHourDiff = Number.POSITIVE_INFINITY
 
-    return matchingPrediction?.v ?? null
+    for (const prediction of tideData.predictions) {
+      const predictionHour = new Date(prediction.t.replace(' ', 'T')).getHours()
+      const hourDiff = Math.abs(predictionHour - activeChartHour)
+      if (hourDiff < closestHourDiff) {
+        closestHourDiff = hourDiff
+        closestPrediction = prediction
+      }
+    }
+
+    return closestPrediction?.v ?? null
   }, [activeChartHour, tideData?.predictions])
 
   useEffect(() => {
