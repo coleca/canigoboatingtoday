@@ -9,7 +9,7 @@ import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
 import WaveForecast from './WaveForecast'
 import DynamicRadarMap from './DynamicRadarMap'
-import Image from 'next/image'
+import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
 
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
@@ -21,6 +21,7 @@ export default function WeatherDashboard() {
   const [locationName, setLocationName] = useState('')
   const [locationInput, setLocationInput] = useState('')
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
+  const [tideStatus, setTideStatus] = useState('idle')
 
   useEffect(() => {
     if (!navigator.onLine) {
@@ -37,18 +38,18 @@ export default function WeatherDashboard() {
           setLocationName(`Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`)
           fetchData(latitude, longitude)
         },
-        (err) => {
+        () => {
           // Default to New York if geolocation fails
-          const defaultLat = 40.7128;
-          const defaultLon = -74.0060;
+          const defaultLat = 40.7128
+          const defaultLon = -74.0060
           setLocation({ latitude: defaultLat, longitude: defaultLon })
           setLocationName(`New York`)
           fetchData(defaultLat, defaultLon)
         }
       )
     } else {
-      const defaultLat = 40.7128;
-      const defaultLon = -74.0060;
+      const defaultLat = 40.7128
+      const defaultLon = -74.0060
       setLocation({ latitude: defaultLat, longitude: defaultLon })
       setLocationName(`New York`)
       fetchData(defaultLat, defaultLon)
@@ -56,75 +57,84 @@ export default function WeatherDashboard() {
   }, [])
 
   const fetchData = async (latitude, longitude) => {
+    try {
+      setLoading(true)
+      setError(null)
+      setTideStatus('loading')
+      setTideData(null)
+
+      const forecast = await getNWSForecast(latitude, longitude)
+      setWeatherData(forecast)
+      setSelectedDayIndex(0)
+      setLoading(false)
+
       try {
-        setLoading(true)
-        setError(null)
-        const [forecast, tides] = await Promise.all([
-          getNWSForecast(latitude, longitude),
-          getTideData(latitude, longitude),
-        ])
-        setWeatherData(forecast)
+        const tides = await getTideData(latitude, longitude)
         setTideData(tides)
-      } catch (err) {
-        setError(`Failed to fetch data: ${err.message}`)
-      } finally {
+        setTideStatus('ready')
+      } catch {
+        setTideStatus('error')
+      }
+    } catch (err) {
+      setWeatherData(null)
+      setTideData(null)
+      setTideStatus('idle')
+      setError(`Failed to fetch data: ${err.message}`)
+      setLoading(false)
+    }
+  }
+
+  const handleLocationSubmit = async (e) => {
+    e.preventDefault()
+    if (!locationInput) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationInput)}&count=1&language=en&format=json`)
+      const data = await response.json()
+
+      if (data.results && data.results.length > 0) {
+        const loc = data.results[0]
+        setLocation({ latitude: loc.latitude, longitude: loc.longitude })
+        setLocationName(loc.name)
+        await fetchData(loc.latitude, loc.longitude)
+      } else {
+        setError('Could not find location.')
         setLoading(false)
       }
+    } catch {
+      setError('Error geocoding location.')
+      setLoading(false)
+    }
   }
 
-  const handleLocationSubmit = (e) => {
-    e.preventDefault();
-    if (!locationInput) return;
-
-    setLoading(true);
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationInput)}&count=1&language=en&format=json`)
-      .then(res => res.json())
-      .then(data => {
-         if (data.results && data.results.length > 0) {
-            const loc = data.results[0];
-            setLocation({ latitude: loc.latitude, longitude: loc.longitude })
-            setLocationName(loc.name)
-            fetchData(loc.latitude, loc.longitude)
-         } else {
-            setError("Could not find location.");
-            setLoading(false);
-         }
-      })
-      .catch(err => {
-         setError("Error geocoding location.");
-         setLoading(false);
-      });
-  }
-
-
-
-  // Get daily periods (skip night times for the daily summary)
-
-  const dailyPeriods = useMemo(() => weatherData?.periods?.filter(p => p.isDaytime || p.name.includes("Tonight")).slice(0, 8) || [], [weatherData?.periods]);
+  const dailyPeriods = useMemo(() => getDailyPeriods(weatherData?.periods ?? []), [weatherData?.periods])
 
   // Extract date string for selected day
   const selectedDateStr = useMemo(() => {
-    if (!dailyPeriods[selectedDayIndex]) return null;
-    const d = new Date(dailyPeriods[selectedDayIndex].startTime);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }, [dailyPeriods, selectedDayIndex]);
+    if (!dailyPeriods[selectedDayIndex]) return null
+    return getLocalDateKey(dailyPeriods[selectedDayIndex].startTime)
+  }, [dailyPeriods, selectedDayIndex])
 
   const hourlyData = useMemo(() => {
-    if (!weatherData?.gridData || !selectedDateStr) return null;
-    return extractHourlyDataForDay(weatherData.gridData, selectedDateStr);
-  }, [weatherData?.gridData, selectedDateStr]);
+    if (!weatherData?.gridData || !selectedDateStr) return null
+    return extractHourlyDataForDay(weatherData.gridData, selectedDateStr)
+  }, [weatherData?.gridData, selectedDateStr])
 
-
+  useEffect(() => {
+    if (selectedDayIndex >= dailyPeriods.length && dailyPeriods.length > 0) {
+      setSelectedDayIndex(0)
+    }
+  }, [dailyPeriods.length, selectedDayIndex])
 
   if (isOffline) {
     return <div className="text-center p-8 text-xl">You are offline. Please check your internet connection.</div>
   }
 
   return (
-      <div className="w-full flex flex-col items-center justify-start min-h-screen pt-4 pb-4">
+      <div className="w-full flex flex-col items-center justify-start min-h-screen pt-4 pb-4 text-white">
         {loading && (
             <div id="loader-overlay" className="visible flex fixed top-0 left-0 w-full h-full bg-black/50 justify-center items-center z-[1000]">
                 <div className="loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full w-[60px] h-[60px] animate-[spin_2s_linear_infinite]"></div>
@@ -161,7 +171,7 @@ export default function WeatherDashboard() {
         {error && <div className="text-center p-4 text-red-200">{error}</div>}
 
         {weatherData && (
-          <div id="weather-forecast" className="w-[95%] max-w-[1400px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-5 mt-5">
+          <div id="weather-forecast" className="w-[95%] max-w-[1400px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-5 mt-5">
             {dailyPeriods.map((period, index) => {
               let iconSrc = period.icon;
               const shortForecastLower = period.shortForecast.toLowerCase();
@@ -182,7 +192,7 @@ export default function WeatherDashboard() {
                   onClick={() => setSelectedDayIndex(index)}
               >
                   <div>
-                    <h2 className="m-0 mb-[15px] text-[1.5em] font-semibold">{period.name.substring(0, 3)}</h2>
+                    <h2 className="m-0 mb-[15px] text-[1.5em] font-semibold">{formatWeekdayLabel(period.startTime)}</h2>
                     <img src={iconSrc} alt={period.shortForecast} className="w-[70px] h-[70px] mx-auto mb-[15px]" style={{ filter: 'invert(1)' }}/>
                     <div className="temp text-[1.2em] flex justify-center gap-[10px]">
                         <span className="max font-bold">{period.temperature}&deg;{period.temperatureUnit}</span>
@@ -220,14 +230,37 @@ export default function WeatherDashboard() {
                   <p className="text-[1.1em]"><span className="font-semibold">{dailyPeriods[selectedDayIndex]?.name}:</span> {dailyPeriods[selectedDayIndex]?.detailedForecast}</p>
               </div>
 
-              <div id="charts-container" className="mt-[20px] flex flex-col gap-[15px]">
-                  <div className="chart-container relative h-[250px]">
+              <div id="charts-container" className="mt-[20px] grid grid-cols-1 xl:grid-cols-2 gap-[15px]">
+                  <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
                     <WaveForecast forecast={dailyPeriods[selectedDayIndex]?.detailedForecast || ''} />
                   </div>
 
+                  {hourlyData && (
+                    <>
+                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        <WaveChart waveData={hourlyData.wave} labels={hourlyData.labels} />
+                      </div>
+                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        <TempChart tempData={hourlyData.temp} labels={hourlyData.labels} />
+                      </div>
+                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        <PrecipChart precipData={hourlyData.precip} labels={hourlyData.labels} />
+                      </div>
+                      <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3">
+                        <WindChart windData={hourlyData.wind} labels={hourlyData.labels} />
+                      </div>
+                    </>
+                  )}
+
                   {tideData && (
-                    <div className="chart-container relative h-[250px]">
+                    <div className="chart-container relative h-[250px] bg-white/10 rounded-[12px] p-3 xl:col-span-2">
                       <TideChart tideData={tideData} />
+                    </div>
+                  )}
+
+                  {tideStatus === 'loading' && (
+                    <div className="chart-container rounded-[12px] border border-white/15 bg-white/10 p-5 text-center xl:col-span-2">
+                      Loading tide chart...
                     </div>
                   )}
               </div>
