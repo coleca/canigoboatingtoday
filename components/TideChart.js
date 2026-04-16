@@ -51,11 +51,16 @@ export default function TideChart({ tideData, activeHour, onActiveHourChange }) 
     const data = []
 
     predictions.forEach((p) => {
+      const numericValue = Number(p.v)
+      if (Number.isNaN(numericValue)) {
+        return
+      }
+
       // Use the pre-instantiated formatter and replace space with T for ISO format
       labels.push(
         timeFormatter.format(new Date(p.t.replace(' ', 'T')))
       )
-      data.push(p.v)
+      data.push(numericValue)
     })
 
     return {
@@ -67,7 +72,11 @@ export default function TideChart({ tideData, activeHour, onActiveHourChange }) 
           borderColor: 'rgba(117, 214, 255, 0.95)',
           backgroundColor: 'rgba(117, 214, 255, 0.22)',
           fill: true,
-          tension: 0.4, // Make the line smooth
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: 'rgba(190, 240, 255, 1)',
+          pointBorderWidth: 1,
         },
       ],
     }
@@ -85,8 +94,16 @@ export default function TideChart({ tideData, activeHour, onActiveHourChange }) 
       text: 'Height in Feet (MLLW)',
       color: 'rgba(255, 255, 255, 0.88)',
     }
+    const tideValues = chartData.datasets[0]?.data ?? []
+    if (tideValues.length > 0) {
+      const minValue = Math.min(...tideValues)
+      const maxValue = Math.max(...tideValues)
+      const padding = Math.max((maxValue - minValue) * 0.15, 0.5)
+      opts.scales.y.min = minValue - padding
+      opts.scales.y.max = maxValue + padding
+    }
     return opts
-  }, [chartData.labels, activeHour, onActiveHourChange])
+  }, [chartData, activeHour, onActiveHourChange])
 
   return (
     <div style={{ position: 'relative', height: '100%' }}>
