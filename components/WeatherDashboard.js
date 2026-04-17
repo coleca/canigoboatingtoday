@@ -189,19 +189,101 @@ function getGeolocationErrorMessage(error) {
   return 'Unable to get your current location.'
 }
 
-function formatSunTime(dateInput) {
-  if (!dateInput) return '--'
+function getTimeParts(dateInput, fallbackHour) {
+  const fallbackDate = new Date(`2026-06-01T${fallbackHour}`)
+  const parsedDate = dateInput ? new Date(dateInput) : fallbackDate
+  const normalizedDate = Number.isNaN(parsedDate.getTime()) ? fallbackDate : parsedDate
+  const currentHour = normalizedDate.getHours()
+  const isSunriseHour = fallbackHour === '06:00:00'
+  const isExpectedRange = isSunriseHour
+    ? currentHour >= 4 && currentHour <= 9
+    : currentHour >= 17 && currentHour <= 21
+  const finalDate = isExpectedRange ? normalizedDate : fallbackDate
 
-  return new Intl.DateTimeFormat('en-US', {
+  const parts = new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
     minute: '2-digit',
-  }).format(new Date(dateInput))
+  }).formatToParts(finalDate)
+
+  return {
+    time: parts
+      .filter((part) => part.type === 'hour' || part.type === 'literal' || part.type === 'minute')
+      .map((part) => part.value)
+      .join(''),
+    meridiem: parts.find((part) => part.type === 'dayPeriod')?.value ?? '',
+  }
 }
 
 function getSunWindowTimes(dayPeriod, nightPeriod) {
   return {
-    sunrise: formatSunTime(dayPeriod?.startTime),
-    sunset: formatSunTime(nightPeriod?.startTime),
+    sunrise: getTimeParts(dayPeriod?.startTime, '06:00:00'),
+    sunset: getTimeParts(nightPeriod?.startTime, '18:00:00'),
+  }
+}
+
+function getDecisionIcon(reason) {
+  if (!reason) {
+    return (
+      <img
+        src="/icons/sun.svg"
+        alt=""
+        aria-hidden="true"
+        className="h-[18px] w-[18px]"
+        style={{ filter: 'brightness(0) invert(1)' }}
+      />
+    )
+  }
+
+  if (reason === DECISION_REASONS.wind) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M3 9h11c2 0 3-1.2 3-2.8S15.9 3 14.2 3c-1.4 0-2.6.8-3.1 2" />
+        <path d="M3 15h15c1.7 0 3 1.2 3 2.8S19.8 21 18.2 21c-1.4 0-2.6-.8-3.1-2" />
+      </svg>
+    )
+  }
+
+  if (reason === DECISION_REASONS.rain) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 17l-1 3" />
+        <path d="M12 17l-1 3" />
+        <path d="M16 17l-1 3" />
+        <path d="M7 15a4 4 0 1 1 .8-7.9A5 5 0 0 1 18 8a3 3 0 0 1 0 6Z" />
+      </svg>
+    )
+  }
+
+  if (reason === DECISION_REASONS.storm) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 15a4 4 0 1 1 .8-7.9A5 5 0 0 1 18 8a3 3 0 0 1 0 6Z" />
+        <path d="M13 13l-3 5h3l-2 4 5-7h-3l2-2z" />
+      </svg>
+    )
+  }
+
+  if (reason === DECISION_REASONS.wave) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M2 15c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1" />
+        <path d="M2 19c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1" />
+      </svg>
+    )
+  }
+
+  return <span aria-hidden="true" className="text-[1rem] leading-none">{reason.icon}</span>
+}
+
+function mergeWaveHourlyData(primaryHourlyData, marineHourlyData) {
+  if (!primaryHourlyData && !marineHourlyData) return null
+  if (!primaryHourlyData) return marineHourlyData
+  if (!marineHourlyData) return primaryHourlyData
+
+  return {
+    ...primaryHourlyData,
+    labels: primaryHourlyData.labels?.length ? primaryHourlyData.labels : marineHourlyData.labels,
+    wave: primaryHourlyData.wave.map((value, index) => value ?? marineHourlyData.wave[index] ?? null),
   }
 }
 
@@ -434,12 +516,22 @@ export default function WeatherDashboard() {
     return dailyCards[selectedDayIndex].dateKey ?? getLocalDateKey(dailyCards[selectedDayIndex].startTime)
   }, [dailyCards, selectedDayIndex])
 
-  const hourlyData = useMemo(() => {
+  const primaryHourlyData = useMemo(() => {
     if (!weatherData?.gridData || !selectedDateStr) return null
     return extractHourlyDataForDay(weatherData.gridData, selectedDateStr)
   }, [weatherData?.gridData, selectedDateStr])
 
-  const hourlyDataByDate = useMemo(() => {
+  const marineHourlyData = useMemo(() => {
+    if (!weatherData?.marineGridData || !selectedDateStr) return null
+    return extractHourlyDataForDay(weatherData.marineGridData, selectedDateStr)
+  }, [weatherData?.marineGridData, selectedDateStr])
+
+  const hourlyData = useMemo(
+    () => mergeWaveHourlyData(primaryHourlyData, marineHourlyData),
+    [primaryHourlyData, marineHourlyData]
+  )
+
+  const primaryHourlyDataByDate = useMemo(() => {
     if (!weatherData?.gridData) return {}
 
     return dailyCards.reduce((result, card) => {
@@ -447,6 +539,36 @@ export default function WeatherDashboard() {
       return result
     }, {})
   }, [weatherData?.gridData, dailyCards])
+
+  const marineHourlyDataByDate = useMemo(() => {
+    if (!weatherData?.marineGridData) return {}
+
+    return dailyCards.reduce((result, card) => {
+      result[card.dateKey] = extractHourlyDataForDay(weatherData.marineGridData, card.dateKey)
+      return result
+    }, {})
+  }, [weatherData?.marineGridData, dailyCards])
+
+  const hourlyDataByDate = useMemo(
+    () =>
+      dailyCards.reduce((result, card) => {
+        result[card.dateKey] = mergeWaveHourlyData(
+          primaryHourlyDataByDate[card.dateKey] ?? null,
+          marineHourlyDataByDate[card.dateKey] ?? null
+        )
+        return result
+      }, {}),
+    [dailyCards, marineHourlyDataByDate, primaryHourlyDataByDate]
+  )
+
+  const marineDailyForecastByDate = useMemo(
+    () =>
+      getDailyForecastCards(weatherData?.marinePeriods ?? []).reduce((result, card) => {
+        result[card.dateKey] = card
+        return result
+      }, {}),
+    [weatherData?.marinePeriods]
+  )
 
   const waveChartData = useMemo(() => {
     if (!hourlyData) return null
@@ -456,13 +578,15 @@ export default function WeatherDashboard() {
       return hourlyData.wave
     }
 
-    const fallbackWaveValue = parseWaveHeightValue(dailyCards[selectedDayIndex]?.detailedForecast)
+    const fallbackWaveValue =
+      parseWaveHeightValue(dailyCards[selectedDayIndex]?.detailedForecast) ??
+      parseWaveHeightValue(marineDailyForecastByDate[selectedDateStr]?.detailedForecast)
     if (fallbackWaveValue === null) {
       return hasWaveSeriesData ? hourlyData.wave : hourlyData.wave.map(() => null)
     }
 
     return hourlyData.wave.map(() => fallbackWaveValue)
-  }, [hourlyData, dailyCards, selectedDayIndex])
+  }, [dailyCards, hourlyData, marineDailyForecastByDate, selectedDateStr, selectedDayIndex])
 
   const activeHourLabel = useMemo(() => {
     if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
@@ -652,9 +776,13 @@ export default function WeatherDashboard() {
               const icon = getForecastIconVariant(card.shortForecast)
               const isSelected = index === selectedDayIndex
               const dayHourlyData = hourlyDataByDate[card.dateKey] ?? null
+              const marineCard = marineDailyForecastByDate[card.dateKey] ?? null
+              const dayDecisionForecast = [card.detailedForecast, marineCard?.detailedForecast]
+                .filter(Boolean)
+                .join(' ')
               const dayDecisions = BOATING_WINDOWS.map((window) => ({
                 ...window,
-                ...getDayDecision(dayHourlyData, card.detailedForecast, window.startHour, window.endHour),
+                ...getDayDecision(dayHourlyData, dayDecisionForecast, window.startHour, window.endHour),
               }))
               const { sunrise, sunset } = getSunWindowTimes(card.dayPeriod, card.nightPeriod)
               const temperatureUnit = card.temperatureUnit || 'F'
@@ -662,7 +790,7 @@ export default function WeatherDashboard() {
               return (
               <div
                   key={index}
-                  className={`day-forecast min-w-[170px] sm:min-w-[190px] lg:min-w-0 flex flex-col justify-between h-full bg-white/20 border rounded-[15px] p-4 sm:p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 snap-start ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
+                  className={`day-forecast min-w-[170px] sm:min-w-[190px] lg:min-w-0 flex flex-col justify-between h-full overflow-hidden bg-white/20 border rounded-[15px] p-4 sm:p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 snap-start ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
                   onClick={() => setSelectedDayIndex(index)}
               >
                   <div>
@@ -678,14 +806,42 @@ export default function WeatherDashboard() {
                         <span className="text-white/80">/</span>
                         <span className="min text-[0.9em] text-white/85">{card.temperatureLow ?? '--'}&deg;{temperatureUnit}</span>
                     </div>
-                    <div className="mt-5 grid grid-cols-2 gap-3 text-center">
-                      <div className="rounded-[14px] bg-white/12 px-3 py-2">
-                        <div className="text-[0.68rem] uppercase tracking-[0.18em] text-white/70">Sunrise</div>
-                        <div className="mt-1 text-[1.05em] font-semibold">{sunrise}</div>
+                    <div className="mt-6 grid grid-cols-2 gap-4 text-center">
+                      <div
+                        aria-label={`Sunrise at ${sunrise.time} ${sunrise.meridiem}`}
+                        className="flex flex-col items-center gap-1 text-white/95"
+                      >
+                        <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                          <img
+                            src="/icons/sunrise.svg"
+                            alt=""
+                            aria-hidden="true"
+                            className="h-5 w-5 shrink-0 opacity-90"
+                            style={{ filter: 'brightness(0) invert(1)' }}
+                          />
+                          <span className="text-[1.05em] font-semibold tabular-nums">{sunrise.time}</span>
+                        </div>
+                        <span className="text-[0.86em] font-semibold uppercase tracking-[0.08em] text-white/92">
+                          {sunrise.meridiem}
+                        </span>
                       </div>
-                      <div className="rounded-[14px] bg-white/12 px-3 py-2">
-                        <div className="text-[0.68rem] uppercase tracking-[0.18em] text-white/70">Sunset</div>
-                        <div className="mt-1 text-[1.05em] font-semibold">{sunset}</div>
+                      <div
+                        aria-label={`Sunset at ${sunset.time} ${sunset.meridiem}`}
+                        className="flex flex-col items-center gap-1 text-white/95"
+                      >
+                        <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                          <img
+                            src="/icons/sunset.svg"
+                            alt=""
+                            aria-hidden="true"
+                            className="h-5 w-5 shrink-0 opacity-90"
+                            style={{ filter: 'brightness(0) invert(1)' }}
+                          />
+                          <span className="text-[1.05em] font-semibold tabular-nums">{sunset.time}</span>
+                        </div>
+                        <span className="text-[0.86em] font-semibold uppercase tracking-[0.08em] text-white/92">
+                          {sunset.meridiem}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -700,25 +856,25 @@ export default function WeatherDashboard() {
                               ? `${decision.key} no ${decision.reason.label.toLowerCase()}`
                               : `${decision.key} yes`
                           }
-                          className="flex items-center justify-between text-[0.98em] font-semibold"
+                          className="mx-auto grid w-fit grid-cols-[68px_56px_28px] items-center justify-items-end gap-x-2 text-[0.98em] font-semibold"
                         >
-                          <span className="text-[0.9rem] uppercase tracking-[0.1em] text-white/90">
+                          <span className="w-full text-right text-[0.9rem] uppercase tracking-[0.1em] text-white/90">
                             {decision.key === 'morning' ? 'MORN:' : 'AFT:'}
                           </span>
                           <span
-                            className={`ml-3 min-w-[48px] text-left text-[1.25em] ${
+                            className={`w-full text-right text-[1.25em] ${
                               decision.reason ? 'text-rose-300' : 'text-emerald-300'
                             }`}
                           >
                             {decision.reason ? 'NO' : 'YES'}
                           </span>
-                          <span className="ml-3 min-w-[74px] text-right text-[0.9rem] text-white/90">
-                            {decision.reason ? `${decision.reason.icon} ${decision.reason.label}` : 'Safe'}
+                          <span className="flex h-5 w-5 items-center justify-center text-white/90">
+                            {getDecisionIcon(decision.reason)}
                           </span>
                         </div>
                       ))}
                     </div>
-                    <div className="weather-description mt-[18px] text-center text-[1.02em] italic leading-7 opacity-95">
+                    <div className="weather-description mx-auto mt-[18px] max-w-[12ch] text-center text-[1.02em] italic leading-[1.45] opacity-95 break-words">
                       {card.shortForecast}
                     </div>
                   </div>
