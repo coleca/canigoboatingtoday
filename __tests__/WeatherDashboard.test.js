@@ -48,7 +48,7 @@ jest.mock('@/components/charts/HourlyCharts', () => ({
   ),
 }))
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:v3:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v4:lastSuccessfulState'
 
 function buildWeatherData() {
   return {
@@ -158,6 +158,10 @@ function buildSupplementData() {
     },
     weatherHourlyByDate: buildWeatherHourlySupplement(),
     marineWaveByDate: buildMarineGridData(),
+    marineWaveMaxByDate: {
+      '2026-04-16': 3.9,
+      '2026-04-17': 4.2,
+    },
   }
 }
 
@@ -496,6 +500,28 @@ describe('WeatherDashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Wave Height (ft)' }))
     expect(screen.getByText('3.9 ft')).toBeInTheDocument()
+  })
+
+  test('keeps wave chart data available when switching to a future day', async () => {
+    mockGeolocationSuccess()
+    const weatherData = buildWeatherData()
+    weatherData.gridData.waveHeight.values = []
+    getNWSForecast.mockResolvedValue(weatherData)
+    getBoatingSupplement.mockResolvedValue(buildSupplementData())
+    getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('heading', { name: 'Fri' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Wave Height (ft)' }))
+
+    expect(screen.getByRole('heading', { name: 'Friday' })).toBeInTheDocument()
+    expect(screen.getByText('4.2 ft')).toBeInTheDocument()
   })
 
   test('backs fills missing current-day wind hours from supplemental hourly weather data', async () => {

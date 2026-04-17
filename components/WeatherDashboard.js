@@ -2,7 +2,7 @@
 /* eslint-disable jsx-a11y/alt-text */
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { geocodeLocation, getBoatingSupplement, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 import TideChart from './TideChart'
 import { extractHourlyDataForDay } from '@/lib/dataTransformers'
@@ -11,7 +11,7 @@ import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyForecastCards, getLocalDateKey } from '@/lib/forecastPeriods'
 import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:v3:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v4:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,
@@ -306,6 +306,14 @@ export default function WeatherDashboard() {
   const [alertsStatus, setAlertsStatus] = useState('idle')
   const [activeChartHour, setActiveChartHour] = useState(null)
   const [shouldLoadRadar, setShouldLoadRadar] = useState(false)
+  const locationRequestTokenRef = useRef(0)
+
+  const beginLocationRequest = () => {
+    locationRequestTokenRef.current += 1
+    return locationRequestTokenRef.current
+  }
+
+  const isLatestLocationRequest = (requestToken) => locationRequestTokenRef.current === requestToken
 
   const clearActiveChartHour = () => {
     setActiveChartHour(null)
@@ -320,11 +328,14 @@ export default function WeatherDashboard() {
       return
     }
 
+    const requestToken = beginLocationRequest()
     setError(null)
     setLoading(true)
 
     requestCurrentLocation(
       (position) => {
+        if (!isLatestLocationRequest(requestToken)) return
+
         const { latitude, longitude } = position.coords
         const resolvedLocationName = `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`
         setLocation({ latitude, longitude })
@@ -332,6 +343,7 @@ export default function WeatherDashboard() {
         fetchData(latitude, longitude, resolvedLocationName)
       },
       (locationError) => {
+        if (!isLatestLocationRequest(requestToken)) return
         setError(getGeolocationErrorMessage(locationError))
         setLoading(false)
       }
@@ -387,14 +399,25 @@ export default function WeatherDashboard() {
     }
 
     if (navigator.geolocation) {
+      const requestToken = beginLocationRequest()
       requestCurrentLocation(
         (position) => {
+          if (!isLatestLocationRequest(requestToken)) return
+
           const { latitude, longitude } = position.coords
+          const resolvedLocationName = `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`
           setLocation({ latitude, longitude })
-          setLocationName(`Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`)
-          fetchData(latitude, longitude, `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`)
+          setLocationName(resolvedLocationName)
+          fetchData(latitude, longitude, resolvedLocationName)
         },
         () => {
+          if (!isLatestLocationRequest(requestToken)) return
+
+          if (cachedDashboard) {
+            setLoading(false)
+            return
+          }
+
           // Default to New York if geolocation fails
           const defaultLat = 40.7128
           const defaultLon = -74.0060
@@ -515,15 +538,19 @@ export default function WeatherDashboard() {
     e.preventDefault()
     if (!locationInput) return
 
+    const requestToken = beginLocationRequest()
     setLoading(true)
     setError(null)
 
     try {
       const loc = await geocodeLocation(locationInput)
+      if (!isLatestLocationRequest(requestToken)) return
+
       setLocation({ latitude: loc.latitude, longitude: loc.longitude })
       setLocationName(loc.name)
       await fetchData(loc.latitude, loc.longitude, loc.name)
     } catch (err) {
+      if (!isLatestLocationRequest(requestToken)) return
       setError(err.message || 'Error geocoding location.')
       setLoading(false)
     }
@@ -587,13 +614,14 @@ export default function WeatherDashboard() {
     }
 
     const fallbackWaveValue =
+      weatherData?.marineWaveMaxByDate?.[selectedDateStr] ??
       parseWaveHeightValue(dailyCards[selectedDayIndex]?.detailedForecast)
     if (fallbackWaveValue === null) {
       return hasWaveSeriesData ? hourlyData.wave : hourlyData.wave.map(() => null)
     }
 
     return hourlyData.wave.map(() => fallbackWaveValue)
-  }, [dailyCards, hourlyData, selectedDayIndex])
+  }, [dailyCards, hourlyData, selectedDateStr, selectedDayIndex, weatherData?.marineWaveMaxByDate])
 
   const activeHourLabel = useMemo(() => {
     if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
