@@ -11,7 +11,7 @@ import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyForecastCards, getLocalDateKey } from '@/lib/forecastPeriods'
 import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v2:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,

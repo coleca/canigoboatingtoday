@@ -22,8 +22,34 @@ const pwaConfig = {
 let withPWA = (config) => config
 
 try {
-  const { default: withPWAInit } = await import('@ducanh2912/next-pwa')
-  withPWA = withPWAInit(pwaConfig)
+  const {
+    default: withPWAInit,
+    runtimeCaching: defaultRuntimeCaching,
+  } = await import('@ducanh2912/next-pwa')
+
+  const runtimeCaching = defaultRuntimeCaching.map((entry) => {
+    const cacheName = entry.options?.cacheName
+
+    if (cacheName === 'next-static-js-assets' || cacheName === 'static-js-assets') {
+      return {
+        ...entry,
+        handler: 'NetworkFirst',
+        options: {
+          ...entry.options,
+          networkTimeoutSeconds: 3,
+        },
+      }
+    }
+
+    return entry
+  })
+
+  withPWA = withPWAInit({
+    ...pwaConfig,
+    workboxOptions: {
+      runtimeCaching,
+    },
+  })
 } catch (error) {
   console.warn('next-pwa could not be loaded; continuing without PWA support.', error)
 }
