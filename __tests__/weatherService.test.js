@@ -1,4 +1,4 @@
-import { geocodeLocation, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getBoatingSupplement, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 
 // Mock the global fetch function before all tests
 global.fetch = jest.fn()
@@ -69,24 +69,24 @@ describe('weatherService', () => {
       // Verify fetch was called correctly for the first (points) request
       expect(fetch).toHaveBeenCalledWith(
         `https://api.weather.gov/points/${latitude},${longitude}`,
-        {
+        expect.objectContaining({
           headers: {
             'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
           },
-        }
+        })
       )
 
       // Verify fetch was called correctly for the second (forecast) request
-      expect(fetch).toHaveBeenCalledWith(mockPointsData.properties.forecast, {
+      expect(fetch).toHaveBeenCalledWith(mockPointsData.properties.forecast, expect.objectContaining({
         headers: {
           'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
         },
-      })
+      }))
     })
 
     test('returns cached forecast data without refetching', async () => {
       sessionStorage.setItem(
-        'forecast:v2:34.05,-118.24',
+        'forecast:v3:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { periods: [{ name: 'Cached Today' }], gridData: { cached: true } },
@@ -137,7 +137,7 @@ describe('weatherService', () => {
 
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
       sessionStorage.setItem(
-        'points:v2:34.05,-118.24',
+        'points:v3:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -180,91 +180,103 @@ describe('weatherService', () => {
         gridData: { refreshedGrid: true },
         radarStation: 'KSOX',
       })
-      expect(fetch).toHaveBeenNthCalledWith(3, `https://api.weather.gov/points/${latitude},${longitude}`, {
+      expect(fetch).toHaveBeenNthCalledWith(3, `https://api.weather.gov/points/${latitude},${longitude}`, expect.objectContaining({
         headers: {
           'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
         },
-      })
-    })
-
-    test('adds a marine wave fallback forecast when the main point has no wave grid data', async () => {
-      const originalPointsData = {
-        properties: {
-          forecast: 'https://api.weather.gov/gridpoints/LOX/15,33/forecast',
-          forecastGridData: 'https://api.weather.gov/gridpoints/LOX/15,33',
-          radarStation: 'KSOX',
-        },
-      }
-      const originalForecastData = {
-        properties: {
-          periods: [{ name: 'Today', detailedForecast: 'Sunny.' }],
-        },
-      }
-      const marinePointsData = {
-        properties: {
-          forecast: 'https://api.weather.gov/gridpoints/PZZ/10,20/forecast',
-          forecastGridData: 'https://api.weather.gov/gridpoints/PZZ/10,20',
-          radarStation: 'KSOX',
-        },
-      }
-      const marineForecastData = {
-        properties: {
-          periods: [{ name: 'Today', detailedForecast: 'Seas 3 to 4 feet.' }],
-        },
-      }
-
-      fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => originalPointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => originalForecastData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ properties: { waveHeight: { values: [] } } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            stations: [{ id: 'marine-1', lat: 34.01, lng: -118.5 }],
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => marinePointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => marineForecastData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            properties: {
-              waveHeight: {
-                values: [{ validTime: '2026-04-16T00:00:00-07:00/PT24H', value: 1.2 }],
-              },
-            },
-          }),
-        })
-
-      const forecast = await getNWSForecast(latitude, longitude)
-
-      expect(forecast.marineGridData).toEqual({
-        waveHeight: {
-          values: [{ validTime: '2026-04-16T00:00:00-07:00/PT24H', value: 1.2 }],
-        },
-      })
-      expect(forecast.marinePeriods).toEqual(marineForecastData.properties.periods)
+      }))
     })
 
     test('throws an error if coordinates are invalid', async () => {
       await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
+    })
+  })
+
+  describe('getBoatingSupplement', () => {
+    test('returns sunrise, sunset, and marine wave data grouped by day', async () => {
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            daily: {
+              time: ['2026-04-16'],
+              sunrise: ['2026-04-16T06:12'],
+              sunset: ['2026-04-16T19:31'],
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            hourly: {
+              time: ['2026-04-16T07:00', '2026-04-16T08:00'],
+              wave_height: [1.2, 1.4],
+            },
+          }),
+        })
+
+      const supplement = await getBoatingSupplement(34.0522, -118.2437)
+
+      expect(supplement).toEqual({
+        sunTimesByDate: {
+          '2026-04-16': {
+            sunrise: '2026-04-16T06:12',
+            sunset: '2026-04-16T19:31',
+          },
+        },
+        marineWaveByDate: {
+          '2026-04-16': [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            3.9,
+            4.6,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+          ],
+        },
+      })
+    })
+
+    test('returns cached supplement data without refetching', async () => {
+      sessionStorage.setItem(
+        'supplement:v3:34.05,-118.24',
+        JSON.stringify({
+          timestamp: Date.now(),
+          payload: {
+            sunTimesByDate: {
+              '2026-04-16': { sunrise: '2026-04-16T06:12', sunset: '2026-04-16T19:31' },
+            },
+            marineWaveByDate: {
+              '2026-04-16': new Array(24).fill(null),
+            },
+          },
+        })
+      )
+
+      const supplement = await getBoatingSupplement(34.0522, -118.2437)
+
+      expect(supplement.sunTimesByDate['2026-04-16'].sunrise).toBe('2026-04-16T06:12')
+      expect(fetch).not.toHaveBeenCalled()
     })
   })
 
@@ -365,7 +377,7 @@ describe('weatherService', () => {
 
     test('returns cached alerts without refetching', async () => {
       sessionStorage.setItem(
-        'alerts:v2:34.05,-118.24',
+        'alerts:v3:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -424,7 +436,7 @@ describe('weatherService', () => {
 
     test('returns cached tide data without refetching', async () => {
       sessionStorage.setItem(
-        'tideData:v2:34.05,-118.24',
+        'tideData:v3:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { predictions: [{ t: '2026-04-16 13:00', v: '1.9' }] },
@@ -447,7 +459,7 @@ describe('weatherService', () => {
   describe('geocodeLocation', () => {
     test('returns cached geocode results without refetching', async () => {
       localStorage.setItem(
-        'geocode:v2:san diego',
+        'geocode:v3:san diego',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { name: 'San Diego', latitude: 32.7157, longitude: -117.1611 },

@@ -1,10 +1,11 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import WeatherDashboard from '@/components/WeatherDashboard'
-import { geocodeLocation, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getBoatingSupplement, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 
 jest.mock('@/lib/weatherService', () => ({
   geocodeLocation: jest.fn(),
+  getBoatingSupplement: jest.fn(),
   getNWSAlerts: jest.fn(),
   getNWSForecast: jest.fn(),
   getTideData: jest.fn(),
@@ -47,7 +48,7 @@ jest.mock('@/components/charts/HourlyCharts', () => ({
   ),
 }))
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:v2:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v3:lastSuccessfulState'
 
 function buildWeatherData() {
   return {
@@ -99,9 +100,27 @@ function buildWeatherData() {
 
 function buildMarineGridData() {
   return {
-    waveHeight: {
-      values: [{ validTime: '2026-04-16T00:00:00-04:00/PT24H', value: 1.2 }],
+    '2026-04-16': (() => {
+      const values = new Array(24).fill(null)
+      values[7] = 3.9
+      return values
+    })(),
+  }
+}
+
+function buildSupplementData() {
+  return {
+    sunTimesByDate: {
+      '2026-04-16': {
+        sunrise: '2026-04-16T06:12:00-04:00',
+        sunset: '2026-04-16T19:31:00-04:00',
+      },
+      '2026-04-17': {
+        sunrise: '2026-04-17T06:11:00-04:00',
+        sunset: '2026-04-17T19:32:00-04:00',
+      },
     },
+    marineWaveByDate: buildMarineGridData(),
   }
 }
 
@@ -196,6 +215,7 @@ describe('WeatherDashboard', () => {
     mockIntersectionObserver()
     mockGeolocationIdle()
     intersectionHandler = null
+    getBoatingSupplement.mockResolvedValue(buildSupplementData())
     getNWSAlerts.mockResolvedValue({ alerts: [], locationContext: {} })
   })
 
@@ -217,6 +237,7 @@ describe('WeatherDashboard', () => {
       screen.getByText('You are offline. Please check your internet connection.')
     ).toBeInTheDocument()
     expect(getNWSForecast).not.toHaveBeenCalled()
+    expect(getBoatingSupplement).not.toHaveBeenCalled()
   })
 
   test('fetches forecast data from geolocation and loads the radar when scrolled into view', async () => {
@@ -409,12 +430,12 @@ describe('WeatherDashboard', () => {
 
     expect(screen.getByText('72°F')).toBeInTheDocument()
     expect(screen.getByText('62°F')).toBeInTheDocument()
-    expect(screen.getAllByLabelText('Sunrise at 6:00 AM').length).toBeGreaterThan(0)
-    expect(screen.getAllByLabelText('Sunset at 6:00 PM').length).toBeGreaterThan(0)
-    expect(screen.getByLabelText('morning yes')).toBeInTheDocument()
-    expect(screen.getByLabelText('afternoon no rain')).toBeInTheDocument()
+    expect(screen.getAllByLabelText('Sunrise at 6:12 AM').length).toBeGreaterThan(0)
+    expect(screen.getAllByLabelText('Sunset at 7:31 PM').length).toBeGreaterThan(0)
     expect(screen.getAllByText('MORN:').length).toBeGreaterThan(0)
     expect(screen.getAllByText('AFT:').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('YES').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('NO').length).toBeGreaterThan(0)
     expect(screen.queryByText(/^Wave N\/A$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/^Sunrise$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/^Sunset$/)).not.toBeInTheDocument()
@@ -425,8 +446,8 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess()
     const weatherData = buildWeatherData()
     weatherData.gridData.waveHeight.values = []
-    weatherData.marineGridData = buildMarineGridData()
     getNWSForecast.mockResolvedValue(weatherData)
+    getBoatingSupplement.mockResolvedValue(buildSupplementData())
     getTideData.mockResolvedValue(buildTideData())
     getNWSAlerts.mockResolvedValue(buildAlertsData())
 
