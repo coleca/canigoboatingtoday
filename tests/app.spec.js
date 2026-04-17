@@ -300,6 +300,10 @@ async function mockForecastApis(page) {
             time: ['2026-04-16T07:00'],
             wave_height: [1.0],
           },
+          daily: {
+            time: ['2026-04-16'],
+            wave_height_max: [1.0],
+          },
         },
       })
       return
@@ -312,6 +316,10 @@ async function mockForecastApis(page) {
             time: ['2026-04-16T07:00'],
             wave_height: [1.3],
           },
+          daily: {
+            time: ['2026-04-16'],
+            wave_height_max: [1.3],
+          },
         },
       })
       return
@@ -322,6 +330,10 @@ async function mockForecastApis(page) {
         hourly: {
           time: ['2026-04-16T07:00'],
           wave_height: [1.2],
+        },
+        daily: {
+          time: ['2026-04-16'],
+          wave_height_max: [1.2],
         },
       },
     })

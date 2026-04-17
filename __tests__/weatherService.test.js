@@ -6,7 +6,7 @@ global.fetch = jest.fn()
 describe('weatherService', () => {
   // Clear all mock implementations and call counts before each test
   beforeEach(() => {
-    fetch.mockClear()
+    fetch.mockReset()
     sessionStorage.clear()
     localStorage.clear()
   })
@@ -86,7 +86,7 @@ describe('weatherService', () => {
 
     test('returns cached forecast data without refetching', async () => {
       sessionStorage.setItem(
-        'forecast:v3:34.05,-118.24',
+        'forecast:v4:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { periods: [{ name: 'Cached Today' }], gridData: { cached: true } },
@@ -137,7 +137,7 @@ describe('weatherService', () => {
 
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
       sessionStorage.setItem(
-        'points:v3:34.05,-118.24',
+        'points:v4:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -217,8 +217,12 @@ describe('weatherService', () => {
           ok: true,
           json: async () => ({
             hourly: {
-              time: ['2026-04-16T07:00', '2026-04-16T10:00', '2026-04-17T07:00'],
-              wave_height: [1.2, 1.4, 1.5],
+              time: ['2026-04-16T20:00', '2026-04-17T08:00'],
+              wave_height: [1.2, 1.5],
+            },
+            daily: {
+              time: ['2026-04-16', '2026-04-17'],
+              wave_height_max: [1.4, 1.6],
             },
           }),
         })
@@ -235,16 +239,21 @@ describe('weatherService', () => {
       expect(supplement.weatherHourlyByDate['2026-04-16'].wind[0]).toBe(8)
       expect(supplement.weatherHourlyByDate['2026-04-16'].wind[23]).toBe(8)
       expect(supplement.weatherHourlyByDate['2026-04-16'].precip[12]).toBe(15)
-      expect(supplement.marineWaveByDate['2026-04-16'][7]).toBe(3.9)
-      expect(supplement.marineWaveByDate['2026-04-16'][10]).toBe(4.6)
-      expect(supplement.marineWaveByDate['2026-04-16'][23]).toBe(4.6)
-      expect(supplement.marineWaveByDate['2026-04-17'][7]).toBe(4.9)
+      expect(supplement.marineWaveByDate['2026-04-16'][20]).toBe(3.9)
+      expect(supplement.marineWaveByDate['2026-04-16'][23]).toBe(3.9)
+      expect(supplement.marineWaveByDate['2026-04-17'][0]).toBe(3.9)
+      expect(supplement.marineWaveByDate['2026-04-17'][7]).toBe(3.9)
+      expect(supplement.marineWaveByDate['2026-04-17'][8]).toBe(4.9)
       expect(supplement.marineWaveByDate['2026-04-17'][23]).toBe(4.9)
+      expect(supplement.marineWaveMaxByDate).toEqual({
+        '2026-04-16': 4.6,
+        '2026-04-17': 5.2,
+      })
     })
 
     test('returns cached supplement data without refetching', async () => {
       sessionStorage.setItem(
-        'supplement:v3:34.05,-118.24',
+        'supplement:v4:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -362,7 +371,7 @@ describe('weatherService', () => {
 
     test('returns cached alerts without refetching', async () => {
       sessionStorage.setItem(
-        'alerts:v3:34.05,-118.24',
+        'alerts:v4:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -421,7 +430,7 @@ describe('weatherService', () => {
 
     test('returns cached tide data without refetching', async () => {
       sessionStorage.setItem(
-        'tideData:v3:34.05,-118.24',
+        'tideData:v4:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { predictions: [{ t: '2026-04-16 13:00', v: '1.9' }] },
@@ -444,7 +453,7 @@ describe('weatherService', () => {
   describe('geocodeLocation', () => {
     test('returns cached geocode results without refetching', async () => {
       localStorage.setItem(
-        'geocode:v3:san diego',
+        'geocode:v4:san diego',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { name: 'San Diego', latitude: 32.7157, longitude: -117.1611 },
