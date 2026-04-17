@@ -30,6 +30,7 @@ describe('weatherService', () => {
       properties: {
         forecast: 'https://api.weather.gov/gridpoints/LOX/15,33/forecast',
         forecastGridData: 'https://api.weather.gov/gridpoints/LOX/15,33',
+        radarStation: 'KSOX',
       },
     }
     const mockForecastData = {
@@ -59,7 +60,11 @@ describe('weatherService', () => {
       const forecast = await getNWSForecast(latitude, longitude)
 
       // Expect the final forecast properties to be returned
-      expect(forecast).toEqual({ ...mockForecastData.properties, gridData: { testGrid: true } })
+      expect(forecast).toEqual({
+        ...mockForecastData.properties,
+        gridData: { testGrid: true },
+        radarStation: 'KSOX',
+      })
 
       // Verify fetch was called correctly for the first (points) request
       expect(fetch).toHaveBeenCalledWith(

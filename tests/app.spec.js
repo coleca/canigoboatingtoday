@@ -20,6 +20,7 @@ async function mockForecastApis(page) {
             forecastGridData: miamiGridUrl,
             county: 'https://api.weather.gov/zones/county/FLC086',
             forecastZone: 'https://api.weather.gov/zones/forecast/AMZ651',
+            radarStation: 'KAMX',
           },
         },
       })
@@ -34,6 +35,7 @@ async function mockForecastApis(page) {
             forecastGridData: newYorkGridUrl,
             county: 'https://api.weather.gov/zones/county/NYC061',
             forecastZone: 'https://api.weather.gov/zones/forecast/ANZ338',
+            radarStation: 'KOKX',
           },
         },
       })
@@ -47,6 +49,7 @@ async function mockForecastApis(page) {
           forecastGridData: losAngelesGridUrl,
           county: 'https://api.weather.gov/zones/county/CAC037',
           forecastZone: 'https://api.weather.gov/zones/forecast/PZZ655',
+          radarStation: 'KSOX',
         },
       },
     })
@@ -249,7 +252,10 @@ test.describe('Can I go boating today? App - E2E', () => {
 
     await page.locator('#radar-map-container').scrollIntoViewIfNeeded()
     await expect(page.getByRole('heading', { name: 'Weather Radar Loop' })).toBeVisible()
-    await expect(page.getByText(/OpenStreetMap/)).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Open full NWS radar page' })).toHaveAttribute(
+      'href',
+      'https://radar.weather.gov/station/ksox/standard'
+    )
   })
 
   test('falls back to New York when browser geolocation fails', async ({ page }) => {

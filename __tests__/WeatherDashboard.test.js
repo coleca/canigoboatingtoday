@@ -391,15 +391,17 @@ describe('WeatherDashboard', () => {
     })
   })
 
-  test('shows a calm-state message when no marine alerts are active', async () => {
+  test('does not render an alert banner when no marine alerts are active', async () => {
     mockGeolocationSuccess()
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockResolvedValue(buildTideData())
 
     render(<WeatherDashboard />)
 
-    expect(
-      await screen.findByText('No active NWS marine or boater alerts were found for this area.')
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
+    )
+
+    expect(screen.queryByText('NOAA / NWS Boater Alerts')).not.toBeInTheDocument()
   })
 })

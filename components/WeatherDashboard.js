@@ -406,25 +406,10 @@ export default function WeatherDashboard() {
                 <div className={`loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full animate-[spin_2s_linear_infinite] ${weatherData ? 'w-[36px] h-[36px]' : 'w-[60px] h-[60px]'}`}></div>
             </div>
         )}
-        <div id="weather-alerts" className="content-width w-full max-w-[1400px] px-3 sm:px-4 mb-5">
-          {alertsStatus === 'loading' && (
-            <div className="rounded-[15px] border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/85 backdrop-blur-[4px]">
-              Checking active boater alerts...
-            </div>
-          )}
-
-          {alertsStatus === 'error' && (
-            <div className="rounded-[15px] border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/85 backdrop-blur-[4px]">
-              Boater alerts are temporarily unavailable. Forecasts and tides are still loaded.
-            </div>
-          )}
-
-          {alertsStatus === 'ready' && marineAlerts.length === 0 && (
-            <div className="rounded-[15px] border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50 backdrop-blur-[4px]">
-              No active NWS marine or boater alerts were found for this area.
-            </div>
-          )}
-
+        <div
+          id="weather-alerts"
+          className={`content-width w-full max-w-[1400px] px-3 sm:px-4 ${marineAlerts.length > 0 ? 'mb-5' : 'mb-0'}`}
+        >
           {alertsStatus === 'ready' && marineAlerts.length > 0 && (
             <div className="rounded-[18px] border border-red-300/25 bg-red-500/10 p-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.24)] backdrop-blur-[4px]">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -638,13 +623,16 @@ export default function WeatherDashboard() {
 
         {location && (
           <div id="radar-map-container" className="w-full max-w-[1400px] px-3 sm:px-4 mt-[30px] mx-auto">
-            <div className="rounded-[15px] overflow-hidden shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] h-[400px]">
+            <div className="rounded-[15px] overflow-hidden shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] aspect-[1/1] min-h-[420px] md:aspect-[4/3] lg:aspect-[5/4]">
               {shouldLoadRadar ? (
-                <DynamicRadarMap location={location} />
+                <DynamicRadarMap
+                  location={location}
+                  radarStation={weatherData?.radarStation ?? alertsData?.locationContext?.radarStation ?? null}
+                />
               ) : (
                 <div className="flex h-full items-center justify-center bg-white/10 text-center text-white/85">
                   <div>
-                    <h2 className="text-2xl font-semibold">Weather Radar</h2>
+                    <h2 className="text-2xl font-semibold">Weather Radar Loop</h2>
                     <p className="mt-3 text-sm">Radar will load as you scroll near it.</p>
                   </div>
                 </div>
