@@ -269,15 +269,25 @@ function getDecisionIcon(reason) {
   return <span aria-hidden="true" className="text-[1rem] leading-none">{reason.icon}</span>
 }
 
-function mergeWaveHourlyData(primaryHourlyData, supplementalWaveSeries) {
-  if (!primaryHourlyData && !supplementalWaveSeries) return null
+function mergeHourlyData(primaryHourlyData, supplementalWeatherData, supplementalWaveSeries) {
+  if (!primaryHourlyData && !supplementalWeatherData && !supplementalWaveSeries) return null
 
   const baseHourlyData = primaryHourlyData ?? createEmptyHourlyData()
-  if (!supplementalWaveSeries) return baseHourlyData
 
   return {
     ...baseHourlyData,
-    wave: baseHourlyData.wave.map((value, index) => value ?? supplementalWaveSeries[index] ?? null),
+    wind: baseHourlyData.wind.map(
+      (value, index) => value ?? supplementalWeatherData?.wind?.[index] ?? null
+    ),
+    precip: baseHourlyData.precip.map(
+      (value, index) => value ?? supplementalWeatherData?.precip?.[index] ?? null
+    ),
+    temp: baseHourlyData.temp.map(
+      (value, index) => value ?? supplementalWeatherData?.temp?.[index] ?? null
+    ),
+    wave: baseHourlyData.wave.map(
+      (value, index) => value ?? supplementalWaveSeries?.[index] ?? null
+    ),
   }
 }
 
@@ -536,10 +546,14 @@ export default function WeatherDashboard() {
     () => weatherData?.marineWaveByDate?.[selectedDateStr] ?? null,
     [selectedDateStr, weatherData?.marineWaveByDate]
   )
+  const supplementalWeatherData = useMemo(
+    () => weatherData?.weatherHourlyByDate?.[selectedDateStr] ?? null,
+    [selectedDateStr, weatherData?.weatherHourlyByDate]
+  )
 
   const hourlyData = useMemo(
-    () => mergeWaveHourlyData(primaryHourlyData, supplementalWaveSeries),
-    [primaryHourlyData, supplementalWaveSeries]
+    () => mergeHourlyData(primaryHourlyData, supplementalWeatherData, supplementalWaveSeries),
+    [primaryHourlyData, supplementalWeatherData, supplementalWaveSeries]
   )
 
   const primaryHourlyDataByDate = useMemo(() => {
@@ -554,13 +568,14 @@ export default function WeatherDashboard() {
   const hourlyDataByDate = useMemo(
     () =>
       dailyCards.reduce((result, card) => {
-        result[card.dateKey] = mergeWaveHourlyData(
+        result[card.dateKey] = mergeHourlyData(
           primaryHourlyDataByDate[card.dateKey] ?? null,
+          weatherData?.weatherHourlyByDate?.[card.dateKey] ?? null,
           weatherData?.marineWaveByDate?.[card.dateKey] ?? null
         )
         return result
       }, {}),
-    [dailyCards, primaryHourlyDataByDate, weatherData?.marineWaveByDate]
+    [dailyCards, primaryHourlyDataByDate, weatherData?.marineWaveByDate, weatherData?.weatherHourlyByDate]
   )
 
   const waveChartData = useMemo(() => {

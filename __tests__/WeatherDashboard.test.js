@@ -103,8 +103,44 @@ function buildMarineGridData() {
     '2026-04-16': (() => {
       const values = new Array(24).fill(null)
       values[7] = 3.9
+      values[8] = 3.9
+      values[9] = 3.9
       return values
     })(),
+    '2026-04-17': (() => {
+      const values = new Array(24).fill(null)
+      values[7] = 4.2
+      values[8] = 4.2
+      values[9] = 4.2
+      return values
+    })(),
+  }
+}
+
+function buildWeatherHourlySupplement() {
+  return {
+    '2026-04-16': {
+      wind: (() => {
+        const values = new Array(24).fill(null)
+        values[0] = 8
+        values[1] = 8
+        values[2] = 8
+        values[3] = 8
+        values[4] = 8
+        values[5] = 9
+        values[6] = 9
+        values[7] = 10
+        values[8] = 10
+        return values
+      })(),
+      temp: new Array(24).fill(68),
+      precip: new Array(24).fill(15),
+    },
+    '2026-04-17': {
+      wind: new Array(24).fill(11),
+      temp: new Array(24).fill(70),
+      precip: new Array(24).fill(25),
+    },
   }
 }
 
@@ -120,6 +156,7 @@ function buildSupplementData() {
         sunset: '2026-04-17T19:32:00-04:00',
       },
     },
+    weatherHourlyByDate: buildWeatherHourlySupplement(),
     marineWaveByDate: buildMarineGridData(),
   }
 }
@@ -459,6 +496,27 @@ describe('WeatherDashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Wave Height (ft)' }))
     expect(screen.getByText('3.9 ft')).toBeInTheDocument()
+  })
+
+  test('backs fills missing current-day wind hours from supplemental hourly weather data', async () => {
+    mockGeolocationSuccess()
+    const weatherData = buildWeatherData()
+    weatherData.gridData.windSpeed.values = [
+      { validTime: '2026-04-16T09:00:00-04:00/PT15H', value: 16 },
+    ]
+    getNWSForecast.mockResolvedValue(weatherData)
+    getBoatingSupplement.mockResolvedValue(buildSupplementData())
+    getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wind Speed (mph)' }))
+    expect(screen.getByText('9 mph')).toBeInTheDocument()
   })
 
   test('does not render an alert banner when no marine alerts are active', async () => {

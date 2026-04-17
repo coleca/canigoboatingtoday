@@ -205,56 +205,41 @@ describe('weatherService', () => {
               sunrise: ['2026-04-16T06:12'],
               sunset: ['2026-04-16T19:31'],
             },
+            hourly: {
+              time: ['2026-04-16T00:00', '2026-04-16T01:00'],
+              temperature_2m: [20, 20],
+              wind_speed_10m: [12.9, 12.9],
+              precipitation_probability: [15, 15],
+            },
           }),
         })
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({
             hourly: {
-              time: ['2026-04-16T07:00', '2026-04-16T08:00'],
-              wave_height: [1.2, 1.4],
+              time: ['2026-04-16T07:00', '2026-04-16T10:00', '2026-04-17T07:00'],
+              wave_height: [1.2, 1.4, 1.5],
             },
           }),
         })
 
       const supplement = await getBoatingSupplement(34.0522, -118.2437)
 
-      expect(supplement).toEqual({
-        sunTimesByDate: {
-          '2026-04-16': {
-            sunrise: '2026-04-16T06:12',
-            sunset: '2026-04-16T19:31',
-          },
-        },
-        marineWaveByDate: {
-          '2026-04-16': [
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            3.9,
-            4.6,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-          ],
+      expect(supplement.sunTimesByDate).toEqual({
+        '2026-04-16': {
+          sunrise: '2026-04-16T06:12',
+          sunset: '2026-04-16T19:31',
         },
       })
+      expect(supplement.weatherHourlyByDate['2026-04-16'].temp[0]).toBe(68)
+      expect(supplement.weatherHourlyByDate['2026-04-16'].wind[0]).toBe(8)
+      expect(supplement.weatherHourlyByDate['2026-04-16'].wind[23]).toBe(8)
+      expect(supplement.weatherHourlyByDate['2026-04-16'].precip[12]).toBe(15)
+      expect(supplement.marineWaveByDate['2026-04-16'][7]).toBe(3.9)
+      expect(supplement.marineWaveByDate['2026-04-16'][10]).toBe(4.6)
+      expect(supplement.marineWaveByDate['2026-04-16'][23]).toBe(4.6)
+      expect(supplement.marineWaveByDate['2026-04-17'][7]).toBe(4.9)
+      expect(supplement.marineWaveByDate['2026-04-17'][23]).toBe(4.9)
     })
 
     test('returns cached supplement data without refetching', async () => {
