@@ -13,6 +13,54 @@ import { parseWaveHeight, parseWaveHeightValue } from '@/lib/forecastUtils'
 
 const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
+const FORECAST_ICON_VARIANTS = {
+  sun: {
+    src: '/icons/sun.svg',
+    filter:
+      'brightness(0) saturate(100%) invert(84%) sepia(72%) saturate(1226%) hue-rotate(355deg) brightness(105%) contrast(104%) drop-shadow(0 6px 14px rgba(255, 200, 0, 0.28))',
+  },
+  cloudy: {
+    src: '/icons/cloudy.svg',
+    filter:
+      'brightness(0) saturate(100%) invert(78%) sepia(9%) saturate(730%) hue-rotate(173deg) brightness(92%) contrast(90%) drop-shadow(0 6px 14px rgba(171, 196, 214, 0.24))',
+  },
+  rain: {
+    src: '/icons/rain.svg',
+    filter:
+      'brightness(0) saturate(100%) invert(49%) sepia(99%) saturate(650%) hue-rotate(176deg) brightness(96%) contrast(94%) drop-shadow(0 6px 14px rgba(56, 189, 248, 0.24))',
+  },
+  thunderstorm: {
+    src: '/icons/thunderstorm.svg',
+    filter:
+      'brightness(0) saturate(100%) invert(66%) sepia(87%) saturate(1355%) hue-rotate(360deg) brightness(103%) contrast(103%) drop-shadow(0 6px 14px rgba(251, 191, 36, 0.24))',
+  },
+  snow: {
+    src: '/icons/snow.svg',
+    filter:
+      'brightness(0) saturate(100%) invert(86%) sepia(16%) saturate(743%) hue-rotate(165deg) brightness(102%) contrast(97%) drop-shadow(0 6px 14px rgba(191, 219, 254, 0.24))',
+  },
+  fog: {
+    src: '/icons/fog.svg',
+    filter:
+      'brightness(0) saturate(100%) invert(87%) sepia(8%) saturate(322%) hue-rotate(175deg) brightness(95%) contrast(92%) drop-shadow(0 6px 14px rgba(203, 213, 225, 0.2))',
+  },
+}
+
+function getForecastIconVariant(shortForecast) {
+  const shortForecastLower = shortForecast.toLowerCase()
+
+  if (shortForecastLower.includes('cloud')) return FORECAST_ICON_VARIANTS.cloudy
+  if (shortForecastLower.includes('clear')) return FORECAST_ICON_VARIANTS.sun
+  if (shortForecastLower.includes('sun')) return FORECAST_ICON_VARIANTS.sun
+  if (shortForecastLower.includes('rain') || shortForecastLower.includes('shower')) {
+    return FORECAST_ICON_VARIANTS.rain
+  }
+  if (shortForecastLower.includes('storm')) return FORECAST_ICON_VARIANTS.thunderstorm
+  if (shortForecastLower.includes('snow')) return FORECAST_ICON_VARIANTS.snow
+  if (shortForecastLower.includes('fog')) return FORECAST_ICON_VARIANTS.fog
+
+  return FORECAST_ICON_VARIANTS.sun
+}
 
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
@@ -349,16 +397,7 @@ export default function WeatherDashboard() {
         {weatherData && (
           <div id="weather-forecast" className="w-full max-w-[1400px] px-3 sm:px-4 mt-5 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 xl:grid-cols-7 lg:overflow-visible">
             {dailyPeriods.map((period, index) => {
-              let iconSrc = '/icons/sun.svg'
-              const shortForecastLower = period.shortForecast.toLowerCase();
-              if (shortForecastLower.includes('cloud')) iconSrc = '/icons/cloudy.svg';
-              else if (shortForecastLower.includes('clear')) iconSrc = '/icons/sun.svg';
-              else if (shortForecastLower.includes('sun')) iconSrc = '/icons/sun.svg';
-              else if (shortForecastLower.includes('rain') || shortForecastLower.includes('shower')) iconSrc = '/icons/rain.svg';
-              else if (shortForecastLower.includes('storm')) iconSrc = '/icons/thunderstorm.svg';
-              else if (shortForecastLower.includes('snow')) iconSrc = '/icons/snow.svg';
-              else if (shortForecastLower.includes('fog')) iconSrc = '/icons/fog.svg';
-
+              const icon = getForecastIconVariant(period.shortForecast)
               const isSelected = index === selectedDayIndex;
               const waveSummary = parseWaveHeight(period.detailedForecast)
 
@@ -370,7 +409,12 @@ export default function WeatherDashboard() {
               >
                   <div>
                     <h2 className="m-0 mb-[15px] text-[1.5em] font-semibold">{formatWeekdayLabel(period.startTime)}</h2>
-                    <img src={iconSrc} alt={period.shortForecast} className="w-[70px] h-[70px] mx-auto mb-[15px]" style={{ filter: 'invert(1)' }}/>
+                    <img
+                      src={icon.src}
+                      alt={period.shortForecast}
+                      className="w-[70px] h-[70px] mx-auto mb-[15px]"
+                      style={{ filter: icon.filter }}
+                    />
                     <div className="temp text-[1.2em] flex justify-center gap-[10px]">
                         <span className="max font-bold">{period.temperature}&deg;{period.temperatureUnit}</span>
                     </div>

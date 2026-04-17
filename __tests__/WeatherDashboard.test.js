@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import WeatherDashboard from '@/components/WeatherDashboard'
 import { geocodeLocation, getNWSForecast, getTideData } from '@/lib/weatherService'
 
@@ -213,9 +213,26 @@ describe('WeatherDashboard', () => {
     expect(screen.getAllByText('6 PM').length).toBeGreaterThan(0)
     expect(screen.getByText('2.9 ft')).toBeInTheDocument()
 
-    intersectionHandler?.([{ isIntersecting: true }])
+    act(() => {
+      intersectionHandler?.([{ isIntersecting: true }])
+    })
 
     await waitFor(() => expect(screen.getByTestId('radar-map')).toBeInTheDocument())
+  })
+
+  test('uses colorful forecast icons in the day grid', async () => {
+    mockGeolocationSuccess()
+    getNWSForecast.mockResolvedValue(buildWeatherData())
+    getTideData.mockResolvedValue(buildTideData())
+
+    render(<WeatherDashboard />)
+
+    const sunnyIcon = await screen.findByAltText('Sunny')
+    const rainIcon = await screen.findByAltText('Rain showers')
+
+    expect(sunnyIcon.style.filter).toContain('drop-shadow')
+    expect(sunnyIcon.style.filter).not.toContain('invert(1)')
+    expect(rainIcon.style.filter).toContain('hue-rotate(176deg)')
   })
 
   test('falls back to New York when geolocation is denied', async () => {
