@@ -47,7 +47,7 @@ jest.mock('@/components/charts/HourlyCharts', () => ({
   ),
 }))
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v2:lastSuccessfulState'
 
 function buildWeatherData() {
   return {

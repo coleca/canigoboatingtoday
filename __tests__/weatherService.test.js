@@ -86,7 +86,7 @@ describe('weatherService', () => {
 
     test('returns cached forecast data without refetching', async () => {
       sessionStorage.setItem(
-        'forecast:34.05,-118.24',
+        'forecast:v2:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { periods: [{ name: 'Cached Today' }], gridData: { cached: true } },
@@ -137,7 +137,7 @@ describe('weatherService', () => {
 
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
       sessionStorage.setItem(
-        'points:34.05,-118.24',
+        'points:v2:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -291,7 +291,7 @@ describe('weatherService', () => {
 
     test('returns cached alerts without refetching', async () => {
       sessionStorage.setItem(
-        'alerts:34.05,-118.24',
+        'alerts:v2:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -350,7 +350,7 @@ describe('weatherService', () => {
 
     test('returns cached tide data without refetching', async () => {
       sessionStorage.setItem(
-        'tideData:34.05,-118.24',
+        'tideData:v2:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { predictions: [{ t: '2026-04-16 13:00', v: '1.9' }] },
@@ -373,7 +373,7 @@ describe('weatherService', () => {
   describe('geocodeLocation', () => {
     test('returns cached geocode results without refetching', async () => {
       localStorage.setItem(
-        'geocode:san diego',
+        'geocode:v2:san diego',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { name: 'San Diego', latitude: 32.7157, longitude: -117.1611 },
