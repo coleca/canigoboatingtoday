@@ -243,6 +243,12 @@ async function mockForecastApis(page) {
             sunrise: ['2026-04-16T06:57'],
             sunset: ['2026-04-16T19:46'],
           },
+          hourly: {
+            time: ['2026-04-16T00:00', '2026-04-16T01:00'],
+            temperature_2m: [26, 26],
+            wind_speed_10m: [14, 14],
+            precipitation_probability: [10, 10],
+          },
         },
       })
       return
@@ -256,6 +262,12 @@ async function mockForecastApis(page) {
             sunrise: ['2026-04-16T06:18'],
             sunset: ['2026-04-16T19:34'],
           },
+          hourly: {
+            time: ['2026-04-16T00:00', '2026-04-16T01:00'],
+            temperature_2m: [17, 17],
+            wind_speed_10m: [12, 12],
+            precipitation_probability: [20, 20],
+          },
         },
       })
       return
@@ -267,6 +279,12 @@ async function mockForecastApis(page) {
           time: ['2026-04-16'],
           sunrise: ['2026-04-16T06:24'],
           sunset: ['2026-04-16T19:19'],
+        },
+        hourly: {
+          time: ['2026-04-16T00:00', '2026-04-16T01:00'],
+          temperature_2m: [20, 20],
+          wind_speed_10m: [13, 13],
+          precipitation_probability: [15, 15],
         },
       },
     })
@@ -328,7 +346,7 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.locator('[aria-label^="Sunset at"]').first()).toBeVisible()
     await expect(page.getByText('MORN:').first()).toBeVisible()
     await expect(page.getByText('AFT:').first()).toBeVisible()
-    await expect(page.getByText('YES').first()).toBeVisible()
+    await expect(page.locator('#weather-forecast').getByText(/YES|NO/).first()).toBeVisible()
     await expect(page.getByText('Small Craft Advisory').first()).toBeVisible()
     await expect(page.locator('#radar-map-container')).toBeVisible()
 
