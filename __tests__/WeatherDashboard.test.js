@@ -317,6 +317,15 @@ describe('WeatherDashboard', () => {
     await waitFor(() => {
       expect(getNWSForecast).toHaveBeenCalledWith(36.8508, -75.9779)
     })
+
+    expect(window.navigator.geolocation.getCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      expect.objectContaining({
+        timeout: 8000,
+        maximumAge: 300000,
+      })
+    )
   })
 
   test('shows a weather error when the main forecast request fails', async () => {
@@ -376,7 +385,7 @@ describe('WeatherDashboard', () => {
     expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
   })
 
-  test('falls back to forecast text for wave details when hourly wave grid data is missing', async () => {
+  test('shows compact AM and PM decision indicators without duplicate forecast chips', async () => {
     mockGeolocationSuccess()
     const weatherData = buildWeatherData()
     weatherData.gridData.waveHeight.values = []
@@ -387,8 +396,13 @@ describe('WeatherDashboard', () => {
     render(<WeatherDashboard />)
 
     await waitFor(() => {
-      expect(screen.getByText('Wave 2 ft')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
     })
+
+    expect(screen.getAllByLabelText('AM favorable').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('PM caution rain')).toBeInTheDocument()
+    expect(screen.queryByText(/^Wave N\/A$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Sunny$/)).not.toBeInTheDocument()
   })
 
   test('does not render an alert banner when no marine alerts are active', async () => {

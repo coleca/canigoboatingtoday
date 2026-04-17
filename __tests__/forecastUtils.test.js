@@ -51,6 +51,10 @@ describe('forecastUtils', () => {
       expect(parseWaveHeightValue('Rain likely. Waves 3 to 5 feet.')).toBe(4)
     })
 
+    test('parses less-than wording into a small positive fallback height', () => {
+      expect(parseWaveHeightValue('Seas less than 1 foot.')).toBe(0.5)
+    })
+
     test('returns null when no wave value can be parsed', () => {
       expect(parseWaveHeightValue('No marine wave detail here.')).toBe(null)
     })

@@ -9,10 +9,25 @@ import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
 import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
-import { parseWaveHeight, parseWaveHeightValue } from '@/lib/forecastUtils'
+import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
 const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
+const GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: false,
+  timeout: 8000,
+  maximumAge: 5 * 60 * 1000,
+}
+const BOATING_WINDOWS = [
+  { key: 'morning', label: 'AM', startHour: 6, endHour: 11 },
+  { key: 'afternoon', label: 'PM', startHour: 12, endHour: 17 },
+]
+const DECISION_REASONS = {
+  storm: { icon: '⚡', label: 'Storm' },
+  rain: { icon: '🌧', label: 'Rain' },
+  wind: { icon: '💨', label: 'Wind' },
+  wave: { icon: '🌊', label: 'Waves' },
+}
 const FORECAST_ICON_VARIANTS = {
   sun: {
     src: '/icons/sun.svg',
@@ -99,6 +114,81 @@ function getAlertSummary(properties = {}) {
   return firstParagraph.trim()
 }
 
+function getHourlyBlockValues(series, startHour, endHour) {
+  if (!Array.isArray(series)) return []
+
+  return series
+    .slice(startHour, endHour + 1)
+    .filter((value) => value !== null && value !== undefined)
+}
+
+function getTextBasedDecisionReason(detailedForecast = '') {
+  const forecastText = detailedForecast.toLowerCase()
+
+  if (/thunder|storm/.test(forecastText)) return DECISION_REASONS.storm
+  if (/showers|rain|precipitation/.test(forecastText)) return DECISION_REASONS.rain
+  if (/gusts as high as ([2-9]\d)|wind ([1-9]\d|[2-9]\d)/.test(forecastText)) {
+    return DECISION_REASONS.wind
+  }
+
+  const waveValue = parseWaveHeightValue(detailedForecast)
+  if (waveValue !== null && waveValue >= 3.5) return DECISION_REASONS.wave
+
+  return null
+}
+
+function getDayDecision(hourlyData, detailedForecast, startHour, endHour) {
+  const windValues = getHourlyBlockValues(hourlyData?.wind, startHour, endHour)
+  const precipValues = getHourlyBlockValues(hourlyData?.precip, startHour, endHour)
+  const waveValues = getHourlyBlockValues(hourlyData?.wave, startHour, endHour)
+
+  const maxWind = windValues.length > 0 ? Math.max(...windValues) : null
+  const maxPrecip = precipValues.length > 0 ? Math.max(...precipValues) : null
+  const maxWave = waveValues.length > 0 ? Math.max(...waveValues) : null
+
+  let reason = null
+
+  if (maxPrecip !== null && maxPrecip >= 35) {
+    reason = DECISION_REASONS.rain
+  } else if (maxWind !== null && maxWind >= 15) {
+    reason = DECISION_REASONS.wind
+  } else if (maxWave !== null && maxWave >= 3.5) {
+    reason = DECISION_REASONS.wave
+  } else {
+    reason = getTextBasedDecisionReason(detailedForecast)
+  }
+
+  if (reason) {
+    return {
+      verdict: 'caution',
+      symbol: '👎',
+      reason,
+    }
+  }
+
+  return {
+    verdict: 'go',
+    symbol: '👍',
+    reason: null,
+  }
+}
+
+function getGeolocationErrorMessage(error) {
+  if (!error) {
+    return 'Unable to get your current location.'
+  }
+
+  if (error.code === 3) {
+    return 'Location lookup timed out. Enter a location or try again.'
+  }
+
+  if (error.code === 1) {
+    return 'Location permission was denied.'
+  }
+
+  return 'Unable to get your current location.'
+}
+
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
   const [weatherData, setWeatherData] = useState(null)
@@ -119,6 +209,10 @@ export default function WeatherDashboard() {
     setActiveChartHour(null)
   }
 
+  const requestCurrentLocation = (onSuccess, onError) => {
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, GEOLOCATION_OPTIONS)
+  }
+
   const loadCurrentLocation = () => {
     if (!navigator.geolocation) {
       return
@@ -127,7 +221,7 @@ export default function WeatherDashboard() {
     setError(null)
     setLoading(true)
 
-    navigator.geolocation.getCurrentPosition(
+    requestCurrentLocation(
       (position) => {
         const { latitude, longitude } = position.coords
         const resolvedLocationName = `Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}`
@@ -135,8 +229,8 @@ export default function WeatherDashboard() {
         setLocationName(resolvedLocationName)
         fetchData(latitude, longitude, resolvedLocationName)
       },
-      () => {
-        setError('Unable to get your current location.')
+      (locationError) => {
+        setError(getGeolocationErrorMessage(locationError))
         setLoading(false)
       }
     )
@@ -191,7 +285,7 @@ export default function WeatherDashboard() {
     }
 
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      requestCurrentLocation(
         (position) => {
           const { latitude, longitude } = position.coords
           setLocation({ latitude, longitude })
@@ -311,17 +405,27 @@ export default function WeatherDashboard() {
     return extractHourlyDataForDay(weatherData.gridData, selectedDateStr)
   }, [weatherData?.gridData, selectedDateStr])
 
+  const hourlyDataByDate = useMemo(() => {
+    if (!weatherData?.gridData) return {}
+
+    return dailyPeriods.reduce((result, period) => {
+      const dateKey = getLocalDateKey(period.startTime)
+      result[dateKey] = extractHourlyDataForDay(weatherData.gridData, dateKey)
+      return result
+    }, {})
+  }, [weatherData?.gridData, dailyPeriods])
+
   const waveChartData = useMemo(() => {
     if (!hourlyData) return null
 
-    const hasWaveSeriesData = hourlyData.wave.some((value) => value !== null && value !== undefined)
+    const hasWaveSeriesData = hourlyData.wave.some((value) => value !== null && value !== undefined && value > 0.1)
     if (hasWaveSeriesData) {
       return hourlyData.wave
     }
 
     const fallbackWaveValue = parseWaveHeightValue(dailyPeriods[selectedDayIndex]?.detailedForecast)
     if (fallbackWaveValue === null) {
-      return hourlyData.wave
+      return hasWaveSeriesData ? hourlyData.wave : hourlyData.wave.map(() => null)
     }
 
     return hourlyData.wave.map(() => fallbackWaveValue)
@@ -513,8 +617,13 @@ export default function WeatherDashboard() {
           <div id="weather-forecast" className="w-full max-w-[1400px] px-3 sm:px-4 mt-5 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 xl:grid-cols-7 lg:overflow-visible">
             {dailyPeriods.map((period, index) => {
               const icon = getForecastIconVariant(period.shortForecast)
-              const isSelected = index === selectedDayIndex;
-              const waveSummary = parseWaveHeight(period.detailedForecast)
+              const isSelected = index === selectedDayIndex
+              const dateKey = getLocalDateKey(period.startTime)
+              const dayHourlyData = hourlyDataByDate[dateKey] ?? null
+              const dayDecisions = BOATING_WINDOWS.map((window) => ({
+                ...window,
+                ...getDayDecision(dayHourlyData, period.detailedForecast, window.startHour, window.endHour),
+              }))
 
               return (
               <div
@@ -535,12 +644,31 @@ export default function WeatherDashboard() {
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <div className="flex flex-wrap justify-center gap-2 text-[0.85em] font-semibold">
-                      <span className="rounded-full bg-white/15 px-3 py-1">Wave {waveSummary}</span>
-                      <span className="rounded-full bg-white/15 px-3 py-1">{period.shortForecast}</span>
+                  <div className="mt-5">
+                    <div className="space-y-2">
+                      {dayDecisions.map((decision) => (
+                        <div
+                          key={decision.key}
+                          aria-label={
+                            decision.reason
+                              ? `${decision.label} caution ${decision.reason.label.toLowerCase()}`
+                              : `${decision.label} favorable`
+                          }
+                          className={`flex items-center justify-between rounded-full px-3 py-2 text-[0.82em] font-semibold ${
+                            decision.reason ? 'bg-red-500/18 text-red-50' : 'bg-emerald-500/18 text-emerald-50'
+                          }`}
+                        >
+                          <span className="text-[0.72rem] uppercase tracking-[0.16em] opacity-80">
+                            {decision.label}
+                          </span>
+                          <span className="text-base">{decision.symbol}</span>
+                          <span className="min-w-[72px] text-right">
+                            {decision.reason ? `${decision.reason.icon} ${decision.reason.label}` : 'Good'}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="weather-description text-center mt-[10px] text-[0.9em] italic opacity-90">
+                    <div className="weather-description text-center mt-[14px] text-[0.9em] italic opacity-90">
                       {period.detailedForecast}
                     </div>
                   </div>

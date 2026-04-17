@@ -245,8 +245,10 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.getByText(/Latitude: 34.0522/)).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(/Longitude: -118.2437/)).toBeVisible()
     await expect(page.locator('#charts-container .chart-container')).toHaveCount(5, { timeout: 15000 })
-    await expect(page.getByText('Wave 2 ft').first()).toBeVisible()
     await expect(page.getByText('Wave Forecast')).toHaveCount(0)
+    await expect(page.getByText('Wave N/A')).toHaveCount(0)
+    await expect(page.locator('[aria-label="AM favorable"]')).toHaveCount(1)
+    await expect(page.locator('[aria-label="PM favorable"]')).toBeVisible()
     await expect(page.getByText('Small Craft Advisory').first()).toBeVisible()
     await expect(page.locator('#radar-map-container')).toBeVisible()
 
@@ -284,6 +286,6 @@ test.describe('Can I go boating today? App - E2E', () => {
 
     await expect(page.getByText('Miami')).toBeVisible({ timeout: 15000 })
     await expect(page.locator('#charts-container .chart-container')).toHaveCount(5, { timeout: 15000 })
-    await expect(page.getByText('Wave 2 ft')).toBeVisible()
+    await expect(page.getByText('Wave N/A')).toHaveCount(0)
   })
 })

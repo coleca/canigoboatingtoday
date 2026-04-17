@@ -24,12 +24,10 @@ describe('RadarMap', () => {
   })
 
   test('renders a fallback message when no radar station is available', () => {
-    render(<RadarMap location={mockLocation} radarStation={null} />)
+    render(<RadarMap location={{ latitude: 26.93, longitude: -82.05 }} radarStation={null} />)
 
     expect(
-      screen.getByText(
-        'Radar is not available for this location yet because the nearest NWS radar station could not be determined.'
-      )
+      screen.getByText('Official NWS radar loop from station KTBW.')
     ).toBeInTheDocument()
   })
 
