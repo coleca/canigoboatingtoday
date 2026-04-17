@@ -187,6 +187,80 @@ describe('weatherService', () => {
       })
     })
 
+    test('adds a marine wave fallback forecast when the main point has no wave grid data', async () => {
+      const originalPointsData = {
+        properties: {
+          forecast: 'https://api.weather.gov/gridpoints/LOX/15,33/forecast',
+          forecastGridData: 'https://api.weather.gov/gridpoints/LOX/15,33',
+          radarStation: 'KSOX',
+        },
+      }
+      const originalForecastData = {
+        properties: {
+          periods: [{ name: 'Today', detailedForecast: 'Sunny.' }],
+        },
+      }
+      const marinePointsData = {
+        properties: {
+          forecast: 'https://api.weather.gov/gridpoints/PZZ/10,20/forecast',
+          forecastGridData: 'https://api.weather.gov/gridpoints/PZZ/10,20',
+          radarStation: 'KSOX',
+        },
+      }
+      const marineForecastData = {
+        properties: {
+          periods: [{ name: 'Today', detailedForecast: 'Seas 3 to 4 feet.' }],
+        },
+      }
+
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => originalPointsData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => originalForecastData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ properties: { waveHeight: { values: [] } } }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            stations: [{ id: 'marine-1', lat: 34.01, lng: -118.5 }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => marinePointsData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => marineForecastData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            properties: {
+              waveHeight: {
+                values: [{ validTime: '2026-04-16T00:00:00-07:00/PT24H', value: 1.2 }],
+              },
+            },
+          }),
+        })
+
+      const forecast = await getNWSForecast(latitude, longitude)
+
+      expect(forecast.marineGridData).toEqual({
+        waveHeight: {
+          values: [{ validTime: '2026-04-16T00:00:00-07:00/PT24H', value: 1.2 }],
+        },
+      })
+      expect(forecast.marinePeriods).toEqual(marineForecastData.properties.periods)
+    })
+
     test('throws an error if coordinates are invalid', async () => {
       await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid latitude or longitude provided.')

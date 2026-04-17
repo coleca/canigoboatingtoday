@@ -97,6 +97,14 @@ function buildWeatherData() {
   }
 }
 
+function buildMarineGridData() {
+  return {
+    waveHeight: {
+      values: [{ validTime: '2026-04-16T00:00:00-04:00/PT24H', value: 1.2 }],
+    },
+  }
+}
+
 function buildTideData() {
   return {
     predictions: [
@@ -401,14 +409,35 @@ describe('WeatherDashboard', () => {
 
     expect(screen.getByText('72°F')).toBeInTheDocument()
     expect(screen.getByText('62°F')).toBeInTheDocument()
-    expect(screen.getAllByText('Sunrise').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Sunset').length).toBeGreaterThan(0)
+    expect(screen.getAllByLabelText('Sunrise at 6:00 AM').length).toBeGreaterThan(0)
+    expect(screen.getAllByLabelText('Sunset at 6:00 PM').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('morning yes')).toBeInTheDocument()
     expect(screen.getByLabelText('afternoon no rain')).toBeInTheDocument()
     expect(screen.getAllByText('MORN:').length).toBeGreaterThan(0)
     expect(screen.getAllByText('AFT:').length).toBeGreaterThan(0)
     expect(screen.queryByText(/^Wave N\/A$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Sunrise$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Sunset$/)).not.toBeInTheDocument()
     expect(screen.getByText('Rain showers')).toBeInTheDocument()
+  })
+
+  test('uses marine wave fallback data for the wave chart when the land point has no wave heights', async () => {
+    mockGeolocationSuccess()
+    const weatherData = buildWeatherData()
+    weatherData.gridData.waveHeight.values = []
+    weatherData.marineGridData = buildMarineGridData()
+    getNWSForecast.mockResolvedValue(weatherData)
+    getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wave Height (ft)' }))
+    expect(screen.getByText('3.9 ft')).toBeInTheDocument()
   })
 
   test('does not render an alert banner when no marine alerts are active', async () => {
