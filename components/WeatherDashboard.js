@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { geocodeLocation, getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 import TideChart from './TideChart'
 import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
@@ -62,10 +62,48 @@ function getForecastIconVariant(shortForecast) {
   return FORECAST_ICON_VARIANTS.sun
 }
 
+function getAlertAccentClasses(severity) {
+  switch (severity) {
+    case 'Extreme':
+      return 'border-red-300/80 bg-red-500/20 text-red-50'
+    case 'Severe':
+      return 'border-orange-300/80 bg-orange-500/20 text-orange-50'
+    case 'Moderate':
+      return 'border-amber-300/80 bg-amber-500/20 text-amber-50'
+    case 'Minor':
+      return 'border-sky-300/80 bg-sky-500/20 text-sky-50'
+    default:
+      return 'border-white/20 bg-white/10 text-white'
+  }
+}
+
+function formatAlertTime(dateValue) {
+  if (!dateValue) return null
+
+  const parsedDate = new Date(dateValue)
+  if (Number.isNaN(parsedDate.getTime())) return null
+
+  return parsedDate.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function getAlertSummary(properties = {}) {
+  if (properties.headline) return properties.headline
+  if (!properties.description) return 'Marine conditions may be hazardous in this area.'
+
+  const [firstParagraph] = properties.description.split('\n')
+  return firstParagraph.trim()
+}
+
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
   const [weatherData, setWeatherData] = useState(null)
   const [tideData, setTideData] = useState(null)
+  const [alertsData, setAlertsData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isOffline, setIsOffline] = useState(false)
@@ -73,6 +111,7 @@ export default function WeatherDashboard() {
   const [locationInput, setLocationInput] = useState('')
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
   const [tideStatus, setTideStatus] = useState('idle')
+  const [alertsStatus, setAlertsStatus] = useState('idle')
   const [activeChartHour, setActiveChartHour] = useState(null)
   const [shouldLoadRadar, setShouldLoadRadar] = useState(false)
 
@@ -182,10 +221,17 @@ export default function WeatherDashboard() {
       setLoading(true)
       setError(null)
       setTideStatus('loading')
+      setAlertsStatus('loading')
       setTideData(null)
+      setAlertsData(null)
 
       const forecastPromise = getNWSForecast(latitude, longitude)
-      const tidePromise = getTideData(latitude, longitude)
+      const tidePromise = getTideData(latitude, longitude).catch((tideError) => ({
+        error: tideError,
+      }))
+      const alertsPromise = getNWSAlerts(latitude, longitude).catch((alertsError) => ({
+        error: alertsError,
+      }))
 
       const forecast = await forecastPromise
       setWeatherData(forecast)
@@ -193,8 +239,10 @@ export default function WeatherDashboard() {
       setActiveChartHour(null)
       setLoading(false)
 
-      try {
-        const tides = await tidePromise
+      const [tideResult, alertsResult] = await Promise.all([tidePromise, alertsPromise])
+
+      if (!tideResult?.error) {
+        const tides = tideResult
         setTideData(tides)
         setTideStatus('ready')
         cacheDashboardState({
@@ -204,7 +252,7 @@ export default function WeatherDashboard() {
           tideData: tides,
           tideStatus: 'ready',
         })
-      } catch {
+      } else {
         setTideStatus('error')
         cacheDashboardState({
           location: { latitude, longitude },
@@ -214,10 +262,19 @@ export default function WeatherDashboard() {
           tideStatus: 'error',
         })
       }
+
+      if (!alertsResult?.error) {
+        setAlertsData(alertsResult)
+        setAlertsStatus('ready')
+      } else {
+        setAlertsStatus('error')
+      }
     } catch (err) {
       setWeatherData(null)
       setTideData(null)
+      setAlertsData(null)
       setTideStatus('idle')
+      setAlertsStatus('idle')
       setError(`Failed to fetch data: ${err.message}`)
       setLoading(false)
     }
@@ -274,6 +331,8 @@ export default function WeatherDashboard() {
     if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
     return hourlyData.labels[activeChartHour] ?? null
   }, [activeChartHour, hourlyData?.labels])
+
+  const marineAlerts = alertsData?.alerts ?? []
 
   useEffect(() => {
     if (selectedDayIndex >= dailyPeriods.length && dailyPeriods.length > 0) {
@@ -347,7 +406,78 @@ export default function WeatherDashboard() {
                 <div className={`loader border-8 border-[#f3f3f3] border-t-[#3498db] rounded-full animate-[spin_2s_linear_infinite] ${weatherData ? 'w-[36px] h-[36px]' : 'w-[60px] h-[60px]'}`}></div>
             </div>
         )}
-        <div id="weather-alerts" className="content-width w-full max-w-[1400px] px-3 sm:px-4 mb-5"></div>
+        <div id="weather-alerts" className="content-width w-full max-w-[1400px] px-3 sm:px-4 mb-5">
+          {alertsStatus === 'loading' && (
+            <div className="rounded-[15px] border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/85 backdrop-blur-[4px]">
+              Checking active boater alerts...
+            </div>
+          )}
+
+          {alertsStatus === 'error' && (
+            <div className="rounded-[15px] border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/85 backdrop-blur-[4px]">
+              Boater alerts are temporarily unavailable. Forecasts and tides are still loaded.
+            </div>
+          )}
+
+          {alertsStatus === 'ready' && marineAlerts.length === 0 && (
+            <div className="rounded-[15px] border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50 backdrop-blur-[4px]">
+              No active NWS marine or boater alerts were found for this area.
+            </div>
+          )}
+
+          {alertsStatus === 'ready' && marineAlerts.length > 0 && (
+            <div className="rounded-[18px] border border-red-300/25 bg-red-500/10 p-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.24)] backdrop-blur-[4px]">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-red-100/80">
+                    NOAA / NWS Boater Alerts
+                  </p>
+                  <h2 className="text-xl font-semibold text-white">
+                    Active marine hazards for the selected area
+                  </h2>
+                </div>
+                <p className="text-sm text-red-100/80">
+                  {marineAlerts.length} active alert{marineAlerts.length === 1 ? '' : 's'}
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {marineAlerts.map((alert) => {
+                  const properties = alert.properties ?? {}
+                  const expiresLabel = formatAlertTime(properties.expires)
+
+                  return (
+                    <article
+                      key={alert.id}
+                      className={`rounded-[16px] border p-4 shadow-lg backdrop-blur-md ${getAlertAccentClasses(properties.severity)}`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-current/25 px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.12em]">
+                          {properties.event}
+                        </span>
+                        {properties.severity && (
+                          <span className="text-xs font-medium opacity-85">{properties.severity}</span>
+                        )}
+                        {properties.urgency && (
+                          <span className="text-xs font-medium opacity-75">{properties.urgency}</span>
+                        )}
+                      </div>
+
+                      <p className="mt-3 text-sm leading-6 text-white/90">
+                        {getAlertSummary(properties)}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-white/75">
+                        {expiresLabel && <span>Expires {expiresLabel}</span>}
+                        {properties.areaDesc && <span>{properties.areaDesc}</span>}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="title-container content-width w-full max-w-[1400px] px-3 sm:px-4 mx-auto flex items-center justify-center gap-3 sm:gap-5 mb-4 mt-5 sm:mt-8">
           <svg className="boat-icon w-[60px] h-[60px] text-white drop-shadow-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor">
             <path d="M20 80h60v10H20z"/>

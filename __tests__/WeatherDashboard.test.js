@@ -1,10 +1,11 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import WeatherDashboard from '@/components/WeatherDashboard'
-import { geocodeLocation, getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 
 jest.mock('@/lib/weatherService', () => ({
   geocodeLocation: jest.fn(),
+  getNWSAlerts: jest.fn(),
   getNWSForecast: jest.fn(),
   getTideData: jest.fn(),
 }))
@@ -106,6 +107,27 @@ function buildTideData() {
   }
 }
 
+function buildAlertsData() {
+  return {
+    alerts: [
+      {
+        id: 'alert-1',
+        properties: {
+          event: 'Small Craft Advisory',
+          severity: 'Moderate',
+          urgency: 'Expected',
+          headline: 'Small Craft Advisory in effect through this evening.',
+          areaDesc: 'Coastal Waters',
+          expires: '2026-04-16T22:00:00-04:00',
+        },
+      },
+    ],
+    locationContext: {
+      forecastZone: 'ANZ000',
+    },
+  }
+}
+
 let intersectionHandler = null
 
 function mockIntersectionObserver() {
@@ -166,6 +188,7 @@ describe('WeatherDashboard', () => {
     mockIntersectionObserver()
     mockGeolocationIdle()
     intersectionHandler = null
+    getNWSAlerts.mockResolvedValue({ alerts: [], locationContext: {} })
   })
 
   test('renders initial layout properly', () => {
@@ -192,6 +215,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess()
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
@@ -202,6 +226,7 @@ describe('WeatherDashboard', () => {
     expect(
       screen.getByText('Latitude: 34.0522, Longitude: -118.2437')
     ).toBeInTheDocument()
+    expect(screen.getByText('Small Craft Advisory')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
     expect(screen.getByText('Radar will load as you scroll near it.')).toBeInTheDocument()
 
@@ -224,6 +249,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess()
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
@@ -239,6 +265,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationError()
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
@@ -253,6 +280,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess()
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
     geocodeLocation.mockResolvedValue({
       name: 'Miami',
       latitude: 25.7617,
@@ -280,6 +308,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess(36.8508, -75.9779)
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
@@ -294,6 +323,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess()
     getNWSForecast.mockRejectedValue(new Error('Forecast is unavailable'))
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
@@ -310,6 +340,7 @@ describe('WeatherDashboard', () => {
     mockGeolocationSuccess()
     getNWSForecast.mockResolvedValue(buildWeatherData())
     getTideData.mockRejectedValue(new Error('Tide service unavailable'))
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
@@ -351,11 +382,24 @@ describe('WeatherDashboard', () => {
     weatherData.gridData.waveHeight.values = []
     getNWSForecast.mockResolvedValue(weatherData)
     getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
     await waitFor(() => {
       expect(screen.getByText('Wave 2 ft')).toBeInTheDocument()
     })
+  })
+
+  test('shows a calm-state message when no marine alerts are active', async () => {
+    mockGeolocationSuccess()
+    getNWSForecast.mockResolvedValue(buildWeatherData())
+    getTideData.mockResolvedValue(buildTideData())
+
+    render(<WeatherDashboard />)
+
+    expect(
+      await screen.findByText('No active NWS marine or boater alerts were found for this area.')
+    ).toBeInTheDocument()
   })
 })

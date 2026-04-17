@@ -1,4 +1,4 @@
-import { geocodeLocation, getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 
 // Mock the global fetch function before all tests
 global.fetch = jest.fn()
@@ -134,6 +134,129 @@ describe('weatherService', () => {
       await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast('34', -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
+    })
+  })
+
+  describe('getNWSAlerts', () => {
+    test('combines point and zone alerts, then keeps marine-relevant hazards only', async () => {
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            properties: {
+              county: 'https://api.weather.gov/zones/county/CAC037',
+              forecastZone: 'https://api.weather.gov/zones/forecast/ANZ338',
+              gridId: 'LOX',
+              radarStation: 'KSOX',
+              relativeLocation: {
+                properties: {
+                  city: 'Los Angeles',
+                  state: 'CA',
+                },
+              },
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            features: [
+              {
+                id: 'special-marine-warning',
+                properties: {
+                  event: 'Special Marine Warning',
+                  severity: 'Severe',
+                  urgency: 'Immediate',
+                  geocode: { UGC: ['ANZ338'] },
+                },
+              },
+              {
+                id: 'heat-advisory',
+                properties: {
+                  event: 'Heat Advisory',
+                  severity: 'Moderate',
+                  urgency: 'Expected',
+                  geocode: { UGC: ['CAZ041'] },
+                },
+              },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            features: [
+              {
+                id: 'special-marine-warning',
+                properties: {
+                  event: 'Special Marine Warning',
+                  severity: 'Severe',
+                  urgency: 'Immediate',
+                  geocode: { UGC: ['ANZ338'] },
+                },
+              },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            features: [
+              {
+                id: 'small-craft-advisory',
+                properties: {
+                  event: 'Small Craft Advisory',
+                  severity: 'Moderate',
+                  urgency: 'Expected',
+                  geocode: { UGC: ['ANZ338'] },
+                },
+              },
+            ],
+          }),
+        })
+
+      const alertsData = await getNWSAlerts(34.0522, -118.2437)
+
+      expect(alertsData.locationContext).toEqual({
+        county: 'CAC037',
+        forecastZone: 'ANZ338',
+        forecastOffice: 'LOX',
+        radarStation: 'KSOX',
+        city: 'Los Angeles',
+        state: 'CA',
+      })
+      expect(alertsData.alerts).toHaveLength(2)
+      expect(alertsData.alerts.map((alert) => alert.id)).toEqual([
+        'special-marine-warning',
+        'small-craft-advisory',
+      ])
+    })
+
+    test('returns cached alerts without refetching', async () => {
+      sessionStorage.setItem(
+        'alerts:34.05,-118.24',
+        JSON.stringify({
+          timestamp: Date.now(),
+          payload: {
+            alerts: [{ id: 'cached-alert', properties: { event: 'Small Craft Advisory' } }],
+            locationContext: { forecastZone: 'ANZ338' },
+          },
+        })
+      )
+
+      const alertsData = await getNWSAlerts(34.0522, -118.2437)
+
+      expect(alertsData).toEqual({
+        alerts: [{ id: 'cached-alert', properties: { event: 'Small Craft Advisory' } }],
+        locationContext: { forecastZone: 'ANZ338' },
+      })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    test('throws when coordinates are invalid', async () => {
+      await expect(getNWSAlerts(91, -118.2437)).rejects.toThrow(
+        'Invalid latitude or longitude provided.'
+      )
     })
   })
 

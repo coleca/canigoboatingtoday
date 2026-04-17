@@ -18,6 +18,8 @@ async function mockForecastApis(page) {
           properties: {
             forecast: miamiForecastUrl,
             forecastGridData: miamiGridUrl,
+            county: 'https://api.weather.gov/zones/county/FLC086',
+            forecastZone: 'https://api.weather.gov/zones/forecast/AMZ651',
           },
         },
       })
@@ -30,6 +32,8 @@ async function mockForecastApis(page) {
           properties: {
             forecast: newYorkForecastUrl,
             forecastGridData: newYorkGridUrl,
+            county: 'https://api.weather.gov/zones/county/NYC061',
+            forecastZone: 'https://api.weather.gov/zones/forecast/ANZ338',
           },
         },
       })
@@ -41,6 +45,8 @@ async function mockForecastApis(page) {
         properties: {
           forecast: losAngelesForecastUrl,
           forecastGridData: losAngelesGridUrl,
+          county: 'https://api.weather.gov/zones/county/CAC037',
+          forecastZone: 'https://api.weather.gov/zones/forecast/PZZ655',
         },
       },
     })
@@ -157,6 +163,40 @@ async function mockForecastApis(page) {
     })
   })
 
+  await page.route('https://api.weather.gov/alerts/active**', async (route) => {
+    const url = route.request().url()
+
+    if (url.includes('34.0522,-118.2437') || url.includes('zone=PZZ655')) {
+      await route.fulfill({
+        json: {
+          features: [
+            {
+              id: 'small-craft-advisory',
+              properties: {
+                event: 'Small Craft Advisory',
+                severity: 'Moderate',
+                urgency: 'Expected',
+                headline: 'Small Craft Advisory in effect through tonight.',
+                areaDesc: 'Inner waters',
+                expires: '2026-04-16T23:00:00-07:00',
+                geocode: {
+                  UGC: ['PZZ655'],
+                },
+              },
+            },
+          ],
+        },
+      })
+      return
+    }
+
+    await route.fulfill({
+      json: {
+        features: [],
+      },
+    })
+  })
+
   await page.route(
     'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions',
     async (route) => {
@@ -204,10 +244,11 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.locator('#charts-container .chart-container')).toHaveCount(5, { timeout: 15000 })
     await expect(page.getByText('Wave 2 ft').first()).toBeVisible()
     await expect(page.getByText('Wave Forecast')).toHaveCount(0)
+    await expect(page.getByText('Small Craft Advisory').first()).toBeVisible()
     await expect(page.locator('#radar-map-container')).toBeVisible()
 
     await page.locator('#radar-map-container').scrollIntoViewIfNeeded()
-    await expect(page.getByRole('heading', { name: 'Weather Radar' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Weather Radar Loop' })).toBeVisible()
     await expect(page.getByText(/OpenStreetMap/)).toBeVisible()
   })
 
