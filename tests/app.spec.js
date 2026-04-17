@@ -247,8 +247,10 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.locator('#charts-container .chart-container')).toHaveCount(5, { timeout: 15000 })
     await expect(page.getByText('Wave Forecast')).toHaveCount(0)
     await expect(page.getByText('Wave N/A')).toHaveCount(0)
-    await expect(page.locator('[aria-label="AM favorable"]')).toHaveCount(1)
-    await expect(page.locator('[aria-label="PM favorable"]')).toBeVisible()
+    await expect(page.getByText('Sunrise').first()).toBeVisible()
+    await expect(page.getByText('Sunset').first()).toBeVisible()
+    await expect(page.locator('[aria-label="morning yes"]')).toHaveCount(1)
+    await expect(page.locator('[aria-label="afternoon yes"]')).toBeVisible()
     await expect(page.getByText('Small Craft Advisory').first()).toBeVisible()
     await expect(page.locator('#radar-map-container')).toBeVisible()
 

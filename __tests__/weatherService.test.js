@@ -135,6 +135,58 @@ describe('weatherService', () => {
       )
     })
 
+    test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
+      sessionStorage.setItem(
+        'points:34.05,-118.24',
+        JSON.stringify({
+          timestamp: Date.now(),
+          payload: {
+            properties: {
+              forecast: 'https://api.weather.gov/gridpoints/OLD/1,1/forecast',
+              forecastGridData: 'https://api.weather.gov/gridpoints/OLD/1,1',
+              radarStation: 'KOLD',
+            },
+          },
+        })
+      )
+
+      fetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ properties: {} }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockPointsData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockForecastData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ properties: { refreshedGrid: true } }),
+        })
+
+      const forecast = await getNWSForecast(latitude, longitude)
+
+      expect(forecast).toEqual({
+        ...mockForecastData.properties,
+        gridData: { refreshedGrid: true },
+        radarStation: 'KSOX',
+      })
+      expect(fetch).toHaveBeenNthCalledWith(3, `https://api.weather.gov/points/${latitude},${longitude}`, {
+        headers: {
+          'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
+        },
+      })
+    })
+
     test('throws an error if coordinates are invalid', async () => {
       await expect(getNWSForecast(91, -118.2437)).rejects.toThrow('Invalid latitude or longitude provided.')
       await expect(getNWSForecast(34.0522, -181)).rejects.toThrow('Invalid latitude or longitude provided.')

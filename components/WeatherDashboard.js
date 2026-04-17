@@ -8,7 +8,7 @@ import TideChart from './TideChart'
 import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
 import DynamicRadarMap from './DynamicRadarMap'
-import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
+import { formatWeekdayLabel, getDailyForecastCards, getLocalDateKey } from '@/lib/forecastPeriods'
 import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
 const DASHBOARD_CACHE_KEY = 'weatherDashboard:lastSuccessfulState'
@@ -189,6 +189,22 @@ function getGeolocationErrorMessage(error) {
   return 'Unable to get your current location.'
 }
 
+function formatSunTime(dateInput) {
+  if (!dateInput) return '--'
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(dateInput))
+}
+
+function getSunWindowTimes(dayPeriod, nightPeriod) {
+  return {
+    sunrise: formatSunTime(dayPeriod?.startTime),
+    sunset: formatSunTime(nightPeriod?.startTime),
+  }
+}
+
 export default function WeatherDashboard() {
   const [location, setLocation] = useState(null)
   const [weatherData, setWeatherData] = useState(null)
@@ -311,13 +327,21 @@ export default function WeatherDashboard() {
   }, [])
 
   const fetchData = async (latitude, longitude, resolvedLocationName = locationName) => {
+    const previousState = {
+      location,
+      locationName,
+      weatherData,
+      tideData,
+      alertsData,
+      tideStatus,
+      alertsStatus,
+    }
+
     try {
       setLoading(true)
       setError(null)
       setTideStatus('loading')
       setAlertsStatus('loading')
-      setTideData(null)
-      setAlertsData(null)
 
       const forecastPromise = getNWSForecast(latitude, longitude)
       const tidePromise = getTideData(latitude, longitude).catch((tideError) => ({
@@ -364,11 +388,21 @@ export default function WeatherDashboard() {
         setAlertsStatus('error')
       }
     } catch (err) {
-      setWeatherData(null)
-      setTideData(null)
-      setAlertsData(null)
-      setTideStatus('idle')
-      setAlertsStatus('idle')
+      if (previousState.weatherData || previousState.tideData || previousState.alertsData) {
+        setLocation(previousState.location)
+        setLocationName(previousState.locationName)
+        setWeatherData(previousState.weatherData)
+        setTideData(previousState.tideData)
+        setAlertsData(previousState.alertsData)
+        setTideStatus(previousState.tideStatus)
+        setAlertsStatus(previousState.alertsStatus)
+      } else {
+        setWeatherData(null)
+        setTideData(null)
+        setAlertsData(null)
+        setTideStatus('idle')
+        setAlertsStatus('idle')
+      }
       setError(`Failed to fetch data: ${err.message}`)
       setLoading(false)
     }
@@ -392,13 +426,13 @@ export default function WeatherDashboard() {
     }
   }
 
-  const dailyPeriods = useMemo(() => getDailyPeriods(weatherData?.periods ?? []), [weatherData?.periods])
+  const dailyCards = useMemo(() => getDailyForecastCards(weatherData?.periods ?? []), [weatherData?.periods])
 
   // Extract date string for selected day
   const selectedDateStr = useMemo(() => {
-    if (!dailyPeriods[selectedDayIndex]) return null
-    return getLocalDateKey(dailyPeriods[selectedDayIndex].startTime)
-  }, [dailyPeriods, selectedDayIndex])
+    if (!dailyCards[selectedDayIndex]) return null
+    return dailyCards[selectedDayIndex].dateKey ?? getLocalDateKey(dailyCards[selectedDayIndex].startTime)
+  }, [dailyCards, selectedDayIndex])
 
   const hourlyData = useMemo(() => {
     if (!weatherData?.gridData || !selectedDateStr) return null
@@ -408,12 +442,11 @@ export default function WeatherDashboard() {
   const hourlyDataByDate = useMemo(() => {
     if (!weatherData?.gridData) return {}
 
-    return dailyPeriods.reduce((result, period) => {
-      const dateKey = getLocalDateKey(period.startTime)
-      result[dateKey] = extractHourlyDataForDay(weatherData.gridData, dateKey)
+    return dailyCards.reduce((result, card) => {
+      result[card.dateKey] = extractHourlyDataForDay(weatherData.gridData, card.dateKey)
       return result
     }, {})
-  }, [weatherData?.gridData, dailyPeriods])
+  }, [weatherData?.gridData, dailyCards])
 
   const waveChartData = useMemo(() => {
     if (!hourlyData) return null
@@ -423,13 +456,13 @@ export default function WeatherDashboard() {
       return hourlyData.wave
     }
 
-    const fallbackWaveValue = parseWaveHeightValue(dailyPeriods[selectedDayIndex]?.detailedForecast)
+    const fallbackWaveValue = parseWaveHeightValue(dailyCards[selectedDayIndex]?.detailedForecast)
     if (fallbackWaveValue === null) {
       return hasWaveSeriesData ? hourlyData.wave : hourlyData.wave.map(() => null)
     }
 
     return hourlyData.wave.map(() => fallbackWaveValue)
-  }, [hourlyData, dailyPeriods, selectedDayIndex])
+  }, [hourlyData, dailyCards, selectedDayIndex])
 
   const activeHourLabel = useMemo(() => {
     if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
@@ -439,10 +472,10 @@ export default function WeatherDashboard() {
   const marineAlerts = alertsData?.alerts ?? []
 
   useEffect(() => {
-    if (selectedDayIndex >= dailyPeriods.length && dailyPeriods.length > 0) {
+    if (selectedDayIndex >= dailyCards.length && dailyCards.length > 0) {
       setSelectedDayIndex(0)
     }
-  }, [dailyPeriods.length, selectedDayIndex])
+  }, [dailyCards.length, selectedDayIndex])
 
   useEffect(() => {
     setActiveChartHour(null)
@@ -615,15 +648,16 @@ export default function WeatherDashboard() {
 
         {weatherData && (
           <div id="weather-forecast" className="w-full max-w-[1400px] px-3 sm:px-4 mt-5 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 xl:grid-cols-7 lg:overflow-visible">
-            {dailyPeriods.map((period, index) => {
-              const icon = getForecastIconVariant(period.shortForecast)
+            {dailyCards.map((card, index) => {
+              const icon = getForecastIconVariant(card.shortForecast)
               const isSelected = index === selectedDayIndex
-              const dateKey = getLocalDateKey(period.startTime)
-              const dayHourlyData = hourlyDataByDate[dateKey] ?? null
+              const dayHourlyData = hourlyDataByDate[card.dateKey] ?? null
               const dayDecisions = BOATING_WINDOWS.map((window) => ({
                 ...window,
-                ...getDayDecision(dayHourlyData, period.detailedForecast, window.startHour, window.endHour),
+                ...getDayDecision(dayHourlyData, card.detailedForecast, window.startHour, window.endHour),
               }))
+              const { sunrise, sunset } = getSunWindowTimes(card.dayPeriod, card.nightPeriod)
+              const temperatureUnit = card.temperatureUnit || 'F'
 
               return (
               <div
@@ -632,44 +666,60 @@ export default function WeatherDashboard() {
                   onClick={() => setSelectedDayIndex(index)}
               >
                   <div>
-                    <h2 className="m-0 mb-[15px] text-[1.5em] font-semibold">{formatWeekdayLabel(period.startTime)}</h2>
+                    <h2 className="m-0 mb-[15px] text-[1.5em] font-semibold">{formatWeekdayLabel(card.startTime)}</h2>
                     <img
                       src={icon.src}
-                      alt={period.shortForecast}
+                      alt={card.shortForecast}
                       className="w-[70px] h-[70px] mx-auto mb-[15px]"
                       style={{ filter: icon.filter }}
                     />
-                    <div className="temp text-[1.2em] flex justify-center gap-[10px]">
-                        <span className="max font-bold">{period.temperature}&deg;{period.temperatureUnit}</span>
+                    <div className="temp text-[1.85em] flex justify-center items-baseline gap-[10px] font-semibold">
+                        <span className="max">{card.temperatureHigh ?? '--'}&deg;{temperatureUnit}</span>
+                        <span className="text-white/80">/</span>
+                        <span className="min text-[0.9em] text-white/85">{card.temperatureLow ?? '--'}&deg;{temperatureUnit}</span>
+                    </div>
+                    <div className="mt-5 grid grid-cols-2 gap-3 text-center">
+                      <div className="rounded-[14px] bg-white/12 px-3 py-2">
+                        <div className="text-[0.68rem] uppercase tracking-[0.18em] text-white/70">Sunrise</div>
+                        <div className="mt-1 text-[1.05em] font-semibold">{sunrise}</div>
+                      </div>
+                      <div className="rounded-[14px] bg-white/12 px-3 py-2">
+                        <div className="text-[0.68rem] uppercase tracking-[0.18em] text-white/70">Sunset</div>
+                        <div className="mt-1 text-[1.05em] font-semibold">{sunset}</div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="mt-5">
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {dayDecisions.map((decision) => (
                         <div
                           key={decision.key}
                           aria-label={
                             decision.reason
-                              ? `${decision.label} caution ${decision.reason.label.toLowerCase()}`
-                              : `${decision.label} favorable`
+                              ? `${decision.key} no ${decision.reason.label.toLowerCase()}`
+                              : `${decision.key} yes`
                           }
-                          className={`flex items-center justify-between rounded-full px-3 py-2 text-[0.82em] font-semibold ${
-                            decision.reason ? 'bg-red-500/18 text-red-50' : 'bg-emerald-500/18 text-emerald-50'
-                          }`}
+                          className="flex items-center justify-between text-[0.98em] font-semibold"
                         >
-                          <span className="text-[0.72rem] uppercase tracking-[0.16em] opacity-80">
-                            {decision.label}
+                          <span className="text-[0.9rem] uppercase tracking-[0.1em] text-white/90">
+                            {decision.key === 'morning' ? 'MORN:' : 'AFT:'}
                           </span>
-                          <span className="text-base">{decision.symbol}</span>
-                          <span className="min-w-[72px] text-right">
-                            {decision.reason ? `${decision.reason.icon} ${decision.reason.label}` : 'Good'}
+                          <span
+                            className={`ml-3 min-w-[48px] text-left text-[1.25em] ${
+                              decision.reason ? 'text-rose-300' : 'text-emerald-300'
+                            }`}
+                          >
+                            {decision.reason ? 'NO' : 'YES'}
+                          </span>
+                          <span className="ml-3 min-w-[74px] text-right text-[0.9rem] text-white/90">
+                            {decision.reason ? `${decision.reason.icon} ${decision.reason.label}` : 'Safe'}
                           </span>
                         </div>
                       ))}
                     </div>
-                    <div className="weather-description text-center mt-[14px] text-[0.9em] italic opacity-90">
-                      {period.detailedForecast}
+                    <div className="weather-description mt-[18px] text-center text-[1.02em] italic leading-7 opacity-95">
+                      {card.shortForecast}
                     </div>
                   </div>
               </div>
@@ -680,7 +730,7 @@ export default function WeatherDashboard() {
         {weatherData && location && (
           <div id="hourly-forecast-container" className="w-full max-w-[1400px] mt-[30px] px-3 sm:px-4">
             <div className="p-[18px] sm:p-[25px] bg-white/20 rounded-[15px] shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px]" style={{display: 'block'}}>
-              <h2 id="hourly-forecast-day" className="text-[1.8em] text-center mb-[20px]">{dailyPeriods[selectedDayIndex]?.name}</h2>
+              <h2 id="hourly-forecast-day" className="text-[1.8em] text-center mb-[20px]">{dailyCards[selectedDayIndex]?.name}</h2>
               <div id="charts-container" className="mt-[20px] flex flex-col gap-[15px]">
                   {hourlyData && (
                     <>

@@ -385,7 +385,7 @@ describe('WeatherDashboard', () => {
     expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
   })
 
-  test('shows compact AM and PM decision indicators without duplicate forecast chips', async () => {
+  test('shows an old-style boating day card with hi low sun times and concise decisions', async () => {
     mockGeolocationSuccess()
     const weatherData = buildWeatherData()
     weatherData.gridData.waveHeight.values = []
@@ -399,10 +399,16 @@ describe('WeatherDashboard', () => {
       expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
     })
 
-    expect(screen.getAllByLabelText('AM favorable').length).toBeGreaterThan(0)
-    expect(screen.getByLabelText('PM caution rain')).toBeInTheDocument()
+    expect(screen.getByText('72°F')).toBeInTheDocument()
+    expect(screen.getByText('62°F')).toBeInTheDocument()
+    expect(screen.getAllByText('Sunrise').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Sunset').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('morning yes')).toBeInTheDocument()
+    expect(screen.getByLabelText('afternoon no rain')).toBeInTheDocument()
+    expect(screen.getAllByText('MORN:').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('AFT:').length).toBeGreaterThan(0)
     expect(screen.queryByText(/^Wave N\/A$/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/^Sunny$/)).not.toBeInTheDocument()
+    expect(screen.getByText('Rain showers')).toBeInTheDocument()
   })
 
   test('does not render an alert banner when no marine alerts are active', async () => {

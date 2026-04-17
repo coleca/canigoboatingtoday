@@ -1,4 +1,9 @@
-import { formatWeekdayLabel, getDailyPeriods, getLocalDateKey } from '@/lib/forecastPeriods'
+import {
+  formatWeekdayLabel,
+  getDailyForecastCards,
+  getDailyPeriods,
+  getLocalDateKey,
+} from '@/lib/forecastPeriods'
 
 describe('forecastPeriods', () => {
   test('getLocalDateKey returns a stable local YYYY-MM-DD key', () => {
@@ -22,5 +27,43 @@ describe('forecastPeriods', () => {
 
   test('formatWeekdayLabel returns short weekday names', () => {
     expect(formatWeekdayLabel('2026-04-16T09:00:00-07:00')).toBe('Thu')
+  })
+
+  test('getDailyForecastCards pairs daytime and nighttime periods for one decision card', () => {
+    const periods = [
+      {
+        name: 'Thursday',
+        isDaytime: true,
+        temperature: 72,
+        temperatureUnit: 'F',
+        shortForecast: 'Sunny',
+        detailedForecast: 'Sunny with light winds.',
+        startTime: '2026-04-16T06:00:00-07:00',
+      },
+      {
+        name: 'Thursday Night',
+        isDaytime: false,
+        temperature: 60,
+        temperatureUnit: 'F',
+        shortForecast: 'Mostly clear',
+        detailedForecast: 'Mostly clear overnight.',
+        startTime: '2026-04-16T19:45:00-07:00',
+      },
+    ]
+
+    expect(getDailyForecastCards(periods)).toEqual([
+      {
+        dateKey: '2026-04-16',
+        dayPeriod: periods[0],
+        nightPeriod: periods[1],
+        name: 'Thursday',
+        startTime: '2026-04-16T06:00:00-07:00',
+        shortForecast: 'Sunny',
+        detailedForecast: 'Sunny with light winds.',
+        temperatureHigh: 72,
+        temperatureLow: 60,
+        temperatureUnit: 'F',
+      },
+    ])
   })
 })
