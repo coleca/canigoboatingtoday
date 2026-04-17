@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { geocodeLocation, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
+import { geocodeLocation, getBoatingSupplement, getNWSAlerts, getNWSForecast, getTideData } from '@/lib/weatherService'
 import TideChart from './TideChart'
 import { extractHourlyDataForDay } from '@/lib/dataTransformers'
 import { WindChart, PrecipChart, TempChart, WaveChart } from './charts/HourlyCharts'
@@ -11,7 +11,7 @@ import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyForecastCards, getLocalDateKey } from '@/lib/forecastPeriods'
 import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:v2:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v3:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,
@@ -189,35 +189,29 @@ function getGeolocationErrorMessage(error) {
   return 'Unable to get your current location.'
 }
 
-function getTimeParts(dateInput, fallbackHour) {
-  const fallbackDate = new Date(`2026-06-01T${fallbackHour}`)
-  const parsedDate = dateInput ? new Date(dateInput) : fallbackDate
-  const normalizedDate = Number.isNaN(parsedDate.getTime()) ? fallbackDate : parsedDate
-  const currentHour = normalizedDate.getHours()
-  const isSunriseHour = fallbackHour === '06:00:00'
-  const isExpectedRange = isSunriseHour
-    ? currentHour >= 4 && currentHour <= 9
-    : currentHour >= 17 && currentHour <= 21
-  const finalDate = isExpectedRange ? normalizedDate : fallbackDate
+function formatSunTime(dateInput) {
+  if (!dateInput) return '--:--'
 
-  const parts = new Intl.DateTimeFormat('en-US', {
+  const parsedDate = new Date(dateInput)
+  if (Number.isNaN(parsedDate.getTime())) return '--:--'
+
+  return new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
     minute: '2-digit',
-  }).formatToParts(finalDate)
-
-  return {
-    time: parts
-      .filter((part) => part.type === 'hour' || part.type === 'literal' || part.type === 'minute')
-      .map((part) => part.value)
-      .join(''),
-    meridiem: parts.find((part) => part.type === 'dayPeriod')?.value ?? '',
-  }
+  }).format(parsedDate)
 }
 
-function getSunWindowTimes(dayPeriod, nightPeriod) {
+function createEmptyHourlyData() {
   return {
-    sunrise: getTimeParts(dayPeriod?.startTime, '06:00:00'),
-    sunset: getTimeParts(nightPeriod?.startTime, '18:00:00'),
+    labels: Array.from({ length: 24 }, (_, index) => {
+      const ampm = index >= 12 ? 'PM' : 'AM'
+      const displayHour = index % 12 || 12
+      return `${displayHour} ${ampm}`
+    }),
+    wind: new Array(24).fill(null),
+    precip: new Array(24).fill(null),
+    temp: new Array(24).fill(null),
+    wave: new Array(24).fill(null),
   }
 }
 
@@ -275,15 +269,15 @@ function getDecisionIcon(reason) {
   return <span aria-hidden="true" className="text-[1rem] leading-none">{reason.icon}</span>
 }
 
-function mergeWaveHourlyData(primaryHourlyData, marineHourlyData) {
-  if (!primaryHourlyData && !marineHourlyData) return null
-  if (!primaryHourlyData) return marineHourlyData
-  if (!marineHourlyData) return primaryHourlyData
+function mergeWaveHourlyData(primaryHourlyData, supplementalWaveSeries) {
+  if (!primaryHourlyData && !supplementalWaveSeries) return null
+
+  const baseHourlyData = primaryHourlyData ?? createEmptyHourlyData()
+  if (!supplementalWaveSeries) return baseHourlyData
 
   return {
-    ...primaryHourlyData,
-    labels: primaryHourlyData.labels?.length ? primaryHourlyData.labels : marineHourlyData.labels,
-    wave: primaryHourlyData.wave.map((value, index) => value ?? marineHourlyData.wave[index] ?? null),
+    ...baseHourlyData,
+    wave: baseHourlyData.wave.map((value, index) => value ?? supplementalWaveSeries[index] ?? null),
   }
 }
 
@@ -426,6 +420,9 @@ export default function WeatherDashboard() {
       setAlertsStatus('loading')
 
       const forecastPromise = getNWSForecast(latitude, longitude)
+      const supplementPromise = getBoatingSupplement(latitude, longitude).catch((supplementError) => ({
+        error: supplementError,
+      }))
       const tidePromise = getTideData(latitude, longitude).catch((tideError) => ({
         error: tideError,
       }))
@@ -439,7 +436,21 @@ export default function WeatherDashboard() {
       setActiveChartHour(null)
       setLoading(false)
 
-      const [tideResult, alertsResult] = await Promise.all([tidePromise, alertsPromise])
+      const [supplementResult, tideResult, alertsResult] = await Promise.all([
+        supplementPromise,
+        tidePromise,
+        alertsPromise,
+      ])
+      const enrichedForecast = !supplementResult?.error
+        ? {
+            ...forecast,
+            ...supplementResult,
+          }
+        : forecast
+
+      if (!supplementResult?.error) {
+        setWeatherData(enrichedForecast)
+      }
 
       if (!tideResult?.error) {
         const tides = tideResult
@@ -448,7 +459,7 @@ export default function WeatherDashboard() {
         cacheDashboardState({
           location: { latitude, longitude },
           locationName: resolvedLocationName,
-          weatherData: forecast,
+          weatherData: enrichedForecast,
           tideData: tides,
           tideStatus: 'ready',
         })
@@ -457,7 +468,7 @@ export default function WeatherDashboard() {
         cacheDashboardState({
           location: { latitude, longitude },
           locationName: resolvedLocationName,
-          weatherData: forecast,
+          weatherData: enrichedForecast,
           tideData: null,
           tideStatus: 'error',
         })
@@ -521,14 +532,14 @@ export default function WeatherDashboard() {
     return extractHourlyDataForDay(weatherData.gridData, selectedDateStr)
   }, [weatherData?.gridData, selectedDateStr])
 
-  const marineHourlyData = useMemo(() => {
-    if (!weatherData?.marineGridData || !selectedDateStr) return null
-    return extractHourlyDataForDay(weatherData.marineGridData, selectedDateStr)
-  }, [weatherData?.marineGridData, selectedDateStr])
+  const supplementalWaveSeries = useMemo(
+    () => weatherData?.marineWaveByDate?.[selectedDateStr] ?? null,
+    [selectedDateStr, weatherData?.marineWaveByDate]
+  )
 
   const hourlyData = useMemo(
-    () => mergeWaveHourlyData(primaryHourlyData, marineHourlyData),
-    [primaryHourlyData, marineHourlyData]
+    () => mergeWaveHourlyData(primaryHourlyData, supplementalWaveSeries),
+    [primaryHourlyData, supplementalWaveSeries]
   )
 
   const primaryHourlyDataByDate = useMemo(() => {
@@ -540,34 +551,16 @@ export default function WeatherDashboard() {
     }, {})
   }, [weatherData?.gridData, dailyCards])
 
-  const marineHourlyDataByDate = useMemo(() => {
-    if (!weatherData?.marineGridData) return {}
-
-    return dailyCards.reduce((result, card) => {
-      result[card.dateKey] = extractHourlyDataForDay(weatherData.marineGridData, card.dateKey)
-      return result
-    }, {})
-  }, [weatherData?.marineGridData, dailyCards])
-
   const hourlyDataByDate = useMemo(
     () =>
       dailyCards.reduce((result, card) => {
         result[card.dateKey] = mergeWaveHourlyData(
           primaryHourlyDataByDate[card.dateKey] ?? null,
-          marineHourlyDataByDate[card.dateKey] ?? null
+          weatherData?.marineWaveByDate?.[card.dateKey] ?? null
         )
         return result
       }, {}),
-    [dailyCards, marineHourlyDataByDate, primaryHourlyDataByDate]
-  )
-
-  const marineDailyForecastByDate = useMemo(
-    () =>
-      getDailyForecastCards(weatherData?.marinePeriods ?? []).reduce((result, card) => {
-        result[card.dateKey] = card
-        return result
-      }, {}),
-    [weatherData?.marinePeriods]
+    [dailyCards, primaryHourlyDataByDate, weatherData?.marineWaveByDate]
   )
 
   const waveChartData = useMemo(() => {
@@ -579,14 +572,13 @@ export default function WeatherDashboard() {
     }
 
     const fallbackWaveValue =
-      parseWaveHeightValue(dailyCards[selectedDayIndex]?.detailedForecast) ??
-      parseWaveHeightValue(marineDailyForecastByDate[selectedDateStr]?.detailedForecast)
+      parseWaveHeightValue(dailyCards[selectedDayIndex]?.detailedForecast)
     if (fallbackWaveValue === null) {
       return hasWaveSeriesData ? hourlyData.wave : hourlyData.wave.map(() => null)
     }
 
     return hourlyData.wave.map(() => fallbackWaveValue)
-  }, [dailyCards, hourlyData, marineDailyForecastByDate, selectedDateStr, selectedDayIndex])
+  }, [dailyCards, hourlyData, selectedDayIndex])
 
   const activeHourLabel = useMemo(() => {
     if (activeChartHour === null || activeChartHour === undefined || !hourlyData?.labels) return null
@@ -771,26 +763,23 @@ export default function WeatherDashboard() {
         {error && <div className="text-center p-4 text-red-200">{error}</div>}
 
         {weatherData && (
-          <div id="weather-forecast" className="w-full max-w-[1400px] px-3 sm:px-4 mt-5 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 xl:grid-cols-7 lg:overflow-visible">
+          <div id="weather-forecast" className="w-full max-w-[1400px] px-3 sm:px-4 mt-5 flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory">
             {dailyCards.map((card, index) => {
               const icon = getForecastIconVariant(card.shortForecast)
               const isSelected = index === selectedDayIndex
               const dayHourlyData = hourlyDataByDate[card.dateKey] ?? null
-              const marineCard = marineDailyForecastByDate[card.dateKey] ?? null
-              const dayDecisionForecast = [card.detailedForecast, marineCard?.detailedForecast]
-                .filter(Boolean)
-                .join(' ')
               const dayDecisions = BOATING_WINDOWS.map((window) => ({
                 ...window,
-                ...getDayDecision(dayHourlyData, dayDecisionForecast, window.startHour, window.endHour),
+                ...getDayDecision(dayHourlyData, card.detailedForecast, window.startHour, window.endHour),
               }))
-              const { sunrise, sunset } = getSunWindowTimes(card.dayPeriod, card.nightPeriod)
+              const sunriseLabel = formatSunTime(weatherData?.sunTimesByDate?.[card.dateKey]?.sunrise)
+              const sunsetLabel = formatSunTime(weatherData?.sunTimesByDate?.[card.dateKey]?.sunset)
               const temperatureUnit = card.temperatureUnit || 'F'
 
               return (
               <div
                   key={index}
-                  className={`day-forecast min-w-[170px] sm:min-w-[190px] lg:min-w-0 flex flex-col justify-between h-full overflow-hidden bg-white/20 border rounded-[15px] p-4 sm:p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 snap-start ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
+                  className={`day-forecast min-w-[220px] sm:min-w-[232px] flex shrink-0 flex-col overflow-hidden bg-white/20 border rounded-[15px] p-4 sm:p-5 text-center shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] backdrop-blur-[4px] cursor-pointer transition-all hover:-translate-y-[10px] hover:bg-white/30 snap-start ${isSelected ? 'bg-white/40 border-white/50 border-2' : 'border-white/30'}`}
                   onClick={() => setSelectedDayIndex(index)}
               >
                   <div>
@@ -806,48 +795,35 @@ export default function WeatherDashboard() {
                         <span className="text-white/80">/</span>
                         <span className="min text-[0.9em] text-white/85">{card.temperatureLow ?? '--'}&deg;{temperatureUnit}</span>
                     </div>
-                    <div className="mt-6 grid grid-cols-2 gap-4 text-center">
+                    <div className="mt-6 grid grid-cols-2 gap-3 text-center">
                       <div
-                        aria-label={`Sunrise at ${sunrise.time} ${sunrise.meridiem}`}
-                        className="flex flex-col items-center gap-1 text-white/95"
+                        aria-label={`Sunrise at ${sunriseLabel}`}
+                        className="flex items-center justify-center gap-2 whitespace-nowrap text-white/95"
                       >
-                        <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                          <img
-                            src="/icons/sunrise.svg"
-                            alt=""
-                            aria-hidden="true"
-                            className="h-5 w-5 shrink-0 opacity-90"
-                            style={{ filter: 'brightness(0) invert(1)' }}
-                          />
-                          <span className="text-[1.05em] font-semibold tabular-nums">{sunrise.time}</span>
-                        </div>
-                        <span className="text-[0.86em] font-semibold uppercase tracking-[0.08em] text-white/92">
-                          {sunrise.meridiem}
-                        </span>
+                        <img
+                          src="/icons/sunrise.svg"
+                          alt=""
+                          aria-hidden="true"
+                          className="h-5 w-5 shrink-0 opacity-90"
+                          style={{ filter: 'brightness(0) invert(1)' }}
+                        />
+                        <span className="text-[1.02em] font-semibold tabular-nums">{sunriseLabel}</span>
                       </div>
                       <div
-                        aria-label={`Sunset at ${sunset.time} ${sunset.meridiem}`}
-                        className="flex flex-col items-center gap-1 text-white/95"
+                        aria-label={`Sunset at ${sunsetLabel}`}
+                        className="flex items-center justify-center gap-2 whitespace-nowrap text-white/95"
                       >
-                        <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                          <img
-                            src="/icons/sunset.svg"
-                            alt=""
-                            aria-hidden="true"
-                            className="h-5 w-5 shrink-0 opacity-90"
-                            style={{ filter: 'brightness(0) invert(1)' }}
-                          />
-                          <span className="text-[1.05em] font-semibold tabular-nums">{sunset.time}</span>
-                        </div>
-                        <span className="text-[0.86em] font-semibold uppercase tracking-[0.08em] text-white/92">
-                          {sunset.meridiem}
-                        </span>
+                        <img
+                          src="/icons/sunset.svg"
+                          alt=""
+                          aria-hidden="true"
+                          className="h-5 w-5 shrink-0 opacity-90"
+                          style={{ filter: 'brightness(0) invert(1)' }}
+                        />
+                        <span className="text-[1.02em] font-semibold tabular-nums">{sunsetLabel}</span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="mt-5">
-                    <div className="space-y-3">
+                    <div className="mt-6 space-y-3">
                       {dayDecisions.map((decision) => (
                         <div
                           key={decision.key}
@@ -856,7 +832,7 @@ export default function WeatherDashboard() {
                               ? `${decision.key} no ${decision.reason.label.toLowerCase()}`
                               : `${decision.key} yes`
                           }
-                          className="mx-auto grid w-fit grid-cols-[68px_56px_28px] items-center justify-items-end gap-x-2 text-[0.98em] font-semibold"
+                          className="mx-auto grid w-[150px] grid-cols-[68px_52px_18px] items-center justify-items-end gap-x-2 text-[0.98em] font-semibold"
                         >
                           <span className="w-full text-right text-[0.9rem] uppercase tracking-[0.1em] text-white/90">
                             {decision.key === 'morning' ? 'MORN:' : 'AFT:'}
@@ -874,7 +850,7 @@ export default function WeatherDashboard() {
                         </div>
                       ))}
                     </div>
-                    <div className="weather-description mx-auto mt-[18px] max-w-[12ch] text-center text-[1.02em] italic leading-[1.45] opacity-95 break-words">
+                    <div className="weather-description mx-auto mt-[18px] max-w-[13ch] text-center text-[1.02em] italic leading-[1.45] opacity-95 break-words">
                       {card.shortForecast}
                     </div>
                   </div>

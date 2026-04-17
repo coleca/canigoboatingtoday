@@ -231,6 +231,83 @@ async function mockForecastApis(page) {
       },
     })
   })
+
+  await page.route('https://api.open-meteo.com/v1/forecast**', async (route) => {
+    const url = route.request().url()
+
+    if (url.includes('latitude=25.7617') && url.includes('longitude=-80.1918')) {
+      await route.fulfill({
+        json: {
+          daily: {
+            time: ['2026-04-16'],
+            sunrise: ['2026-04-16T06:57'],
+            sunset: ['2026-04-16T19:46'],
+          },
+        },
+      })
+      return
+    }
+
+    if (url.includes('latitude=40.7128') && url.includes('longitude=-74.006')) {
+      await route.fulfill({
+        json: {
+          daily: {
+            time: ['2026-04-16'],
+            sunrise: ['2026-04-16T06:18'],
+            sunset: ['2026-04-16T19:34'],
+          },
+        },
+      })
+      return
+    }
+
+    await route.fulfill({
+      json: {
+        daily: {
+          time: ['2026-04-16'],
+          sunrise: ['2026-04-16T06:24'],
+          sunset: ['2026-04-16T19:19'],
+        },
+      },
+    })
+  })
+
+  await page.route('https://marine-api.open-meteo.com/v1/marine**', async (route) => {
+    const url = route.request().url()
+
+    if (url.includes('latitude=25.7617') && url.includes('longitude=-80.1918')) {
+      await route.fulfill({
+        json: {
+          hourly: {
+            time: ['2026-04-16T07:00'],
+            wave_height: [1.0],
+          },
+        },
+      })
+      return
+    }
+
+    if (url.includes('latitude=40.7128') && url.includes('longitude=-74.006')) {
+      await route.fulfill({
+        json: {
+          hourly: {
+            time: ['2026-04-16T07:00'],
+            wave_height: [1.3],
+          },
+        },
+      })
+      return
+    }
+
+    await route.fulfill({
+      json: {
+        hourly: {
+          time: ['2026-04-16T07:00'],
+          wave_height: [1.2],
+        },
+      },
+    })
+  })
 }
 
 test.describe('Can I go boating today? App - E2E', () => {
@@ -249,8 +326,9 @@ test.describe('Can I go boating today? App - E2E', () => {
     await expect(page.getByText('Wave N/A')).toHaveCount(0)
     await expect(page.locator('[aria-label^="Sunrise at"]').first()).toBeVisible()
     await expect(page.locator('[aria-label^="Sunset at"]').first()).toBeVisible()
-    await expect(page.locator('[aria-label="morning yes"]')).toHaveCount(1)
-    await expect(page.locator('[aria-label="afternoon yes"]')).toBeVisible()
+    await expect(page.getByText('MORN:').first()).toBeVisible()
+    await expect(page.getByText('AFT:').first()).toBeVisible()
+    await expect(page.getByText('YES').first()).toBeVisible()
     await expect(page.getByText('Small Craft Advisory').first()).toBeVisible()
     await expect(page.locator('#radar-map-container')).toBeVisible()
 
