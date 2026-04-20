@@ -86,7 +86,7 @@ describe('weatherService', () => {
 
     test('returns cached forecast data without refetching', async () => {
       sessionStorage.setItem(
-        'forecast:v4:34.05,-118.24',
+        'forecast:v5:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { periods: [{ name: 'Cached Today' }], gridData: { cached: true } },
@@ -137,7 +137,7 @@ describe('weatherService', () => {
 
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
       sessionStorage.setItem(
-        'points:v4:34.05,-118.24',
+        'points:v5:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -253,7 +253,7 @@ describe('weatherService', () => {
 
     test('returns cached supplement data without refetching', async () => {
       sessionStorage.setItem(
-        'supplement:v4:34.05,-118.24',
+        'supplement:v5:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -371,7 +371,7 @@ describe('weatherService', () => {
 
     test('returns cached alerts without refetching', async () => {
       sessionStorage.setItem(
-        'alerts:v4:34.05,-118.24',
+        'alerts:v5:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: {
@@ -430,7 +430,7 @@ describe('weatherService', () => {
 
     test('returns cached tide data without refetching', async () => {
       sessionStorage.setItem(
-        'tideData:v4:34.05,-118.24',
+        'tideData:v5:34.05,-118.24',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { predictions: [{ t: '2026-04-16 13:00', v: '1.9' }] },
@@ -453,7 +453,7 @@ describe('weatherService', () => {
   describe('geocodeLocation', () => {
     test('returns cached geocode results without refetching', async () => {
       localStorage.setItem(
-        'geocode:v4:san diego',
+        'geocode:v5:san diego',
         JSON.stringify({
           timestamp: Date.now(),
           payload: { name: 'San Diego', latitude: 32.7157, longitude: -117.1611 },

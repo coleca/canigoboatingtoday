@@ -370,7 +370,7 @@ test.describe('Can I go boating today? App - E2E', () => {
     )
   })
 
-  test('falls back to New York when browser geolocation fails', async ({ page }) => {
+  test('shows a location prompt when browser geolocation fails', async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window.navigator, 'geolocation', {
         configurable: true,
@@ -382,8 +382,10 @@ test.describe('Can I go boating today? App - E2E', () => {
 
     await page.goto('/')
 
-    await expect(page.getByText('New York')).toBeVisible({ timeout: 15000 })
-    await expect(page.locator('#charts-container .chart-container')).toHaveCount(5, { timeout: 15000 })
+    await expect(
+      page.getByText('Unable to get your current location. Enter a location to continue.')
+    ).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('New York')).toHaveCount(0)
   })
 
   test('supports searching for a different location manually', async ({ page }) => {

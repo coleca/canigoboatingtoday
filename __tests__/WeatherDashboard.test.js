@@ -48,7 +48,19 @@ jest.mock('@/components/charts/HourlyCharts', () => ({
   ),
 }))
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:v4:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v5:lastSuccessfulState'
+
+function createDeferred() {
+  let resolve
+  let reject
+
+  const promise = new Promise((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+
+  return { promise, resolve, reject }
+}
 
 function buildWeatherData() {
   return {
@@ -331,19 +343,19 @@ describe('WeatherDashboard', () => {
     expect(rainIcon.style.filter).toContain('hue-rotate(176deg)')
   })
 
-  test('falls back to New York when geolocation is denied', async () => {
+  test('shows a location prompt instead of defaulting to New York when geolocation is denied', async () => {
     mockGeolocationError()
-    getNWSForecast.mockResolvedValue(buildWeatherData())
-    getTideData.mockResolvedValue(buildTideData())
-    getNWSAlerts.mockResolvedValue(buildAlertsData())
 
     render(<WeatherDashboard />)
 
     await waitFor(() =>
-      expect(getNWSForecast).toHaveBeenCalledWith(40.7128, -74.006)
+      expect(
+        screen.getByText('Unable to get your current location. Enter a location to continue.')
+      ).toBeInTheDocument()
     )
 
-    expect(screen.getByText('New York')).toBeInTheDocument()
+    expect(getNWSForecast).not.toHaveBeenCalled()
+    expect(screen.queryByText('New York')).not.toBeInTheDocument()
   })
 
   test('supports manual location searches', async () => {
@@ -395,6 +407,38 @@ describe('WeatherDashboard', () => {
         timeout: 8000,
         maximumAge: 300000,
       })
+    )
+  })
+
+  test('renders the main forecast before slower supplemental requests finish', async () => {
+    mockGeolocationSuccess()
+    const supplementDeferred = createDeferred()
+    const tideDeferred = createDeferred()
+    const alertsDeferred = createDeferred()
+
+    getNWSForecast.mockResolvedValue(buildWeatherData())
+    getBoatingSupplement.mockReturnValue(supplementDeferred.promise)
+    getTideData.mockReturnValue(tideDeferred.promise)
+    getNWSAlerts.mockReturnValue(alertsDeferred.promise)
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
+    )
+
+    expect(screen.getByRole('button', { name: 'Wind Speed (mph)' })).toBeInTheDocument()
+    expect(screen.getByText('Loading tide chart...')).toBeInTheDocument()
+
+    await act(async () => {
+      supplementDeferred.resolve(buildSupplementData())
+      tideDeferred.resolve(buildTideData())
+      alertsDeferred.resolve(buildAlertsData())
+      await Promise.resolve()
+    })
+
+    await waitFor(() =>
+      expect(screen.queryByText('Loading tide chart...')).not.toBeInTheDocument()
     )
   })
 
