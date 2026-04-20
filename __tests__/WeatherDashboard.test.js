@@ -499,6 +499,35 @@ describe('WeatherDashboard', () => {
     expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
   })
 
+  test('keeps the cached dashboard visible if a refresh forecast times out', async () => {
+    mockGeolocationSuccess()
+    localStorage.setItem(
+      DASHBOARD_CACHE_KEY,
+      JSON.stringify({
+        timestamp: Date.now(),
+        payload: {
+          location: { latitude: 32.7157, longitude: -117.1611 },
+          locationName: 'San Diego',
+          weatherData: buildWeatherData(),
+          tideData: buildTideData(),
+          tideStatus: 'ready',
+        },
+      })
+    )
+    getNWSForecast.mockRejectedValue(new Error('Request timed out after 8 seconds.'))
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Failed to fetch data: Request timed out after 8 seconds.')
+      ).toBeInTheDocument()
+    )
+
+    expect(screen.getByText('San Diego')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Thu' })).toBeInTheDocument()
+  })
+
   test('shows an old-style boating day card with hi low sun times and concise decisions', async () => {
     mockGeolocationSuccess()
     const weatherData = buildWeatherData()

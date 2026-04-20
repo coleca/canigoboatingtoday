@@ -312,6 +312,7 @@ export default function WeatherDashboard() {
   const [shouldLoadRadar, setShouldLoadRadar] = useState(false)
   const locationRequestTokenRef = useRef(0)
   const dataRequestTokenRef = useRef(0)
+  const lastSuccessfulStateRef = useRef(null)
 
   const beginLocationRequest = () => {
     locationRequestTokenRef.current += 1
@@ -395,6 +396,15 @@ export default function WeatherDashboard() {
   useEffect(() => {
     const cachedDashboard = getCachedDashboardState()
     if (cachedDashboard) {
+      lastSuccessfulStateRef.current = {
+        location: cachedDashboard.location ?? null,
+        locationName: cachedDashboard.locationName ?? '',
+        weatherData: cachedDashboard.weatherData ?? null,
+        tideData: cachedDashboard.tideData ?? null,
+        alertsData: null,
+        tideStatus: cachedDashboard.tideStatus ?? 'idle',
+        alertsStatus: 'idle',
+      }
       setLocation(cachedDashboard.location ?? null)
       setWeatherData(cachedDashboard.weatherData ?? null)
       setTideData(cachedDashboard.tideData ?? null)
@@ -445,7 +455,7 @@ export default function WeatherDashboard() {
 
   const fetchData = async (latitude, longitude, resolvedLocationName = locationName) => {
     const dataRequestToken = beginDataRequest()
-    const previousState = {
+    const previousState = lastSuccessfulStateRef.current ?? {
       location,
       locationName,
       weatherData,
@@ -468,6 +478,15 @@ export default function WeatherDashboard() {
       setSelectedDayIndex(0)
       setActiveChartHour(null)
       setLoading(false)
+      lastSuccessfulStateRef.current = {
+        location: { latitude, longitude },
+        locationName: resolvedLocationName,
+        weatherData: forecast,
+        tideData: previousState.tideData ?? null,
+        alertsData: previousState.alertsData ?? null,
+        tideStatus: previousState.tideStatus ?? 'idle',
+        alertsStatus: previousState.alertsStatus ?? 'idle',
+      }
 
       void (async () => {
         const [supplementResult, tideResult, alertsResult] = await Promise.all([
@@ -521,6 +540,16 @@ export default function WeatherDashboard() {
           setAlertsStatus('ready')
         } else {
           setAlertsStatus('error')
+        }
+
+        lastSuccessfulStateRef.current = {
+          location: { latitude, longitude },
+          locationName: resolvedLocationName,
+          weatherData: enrichedForecast,
+          tideData: !tideResult?.error ? tideResult : null,
+          alertsData: !alertsResult?.error ? alertsResult : null,
+          tideStatus: !tideResult?.error ? 'ready' : 'error',
+          alertsStatus: !alertsResult?.error ? 'ready' : 'error',
         }
       })()
     } catch (err) {
@@ -850,7 +879,7 @@ export default function WeatherDashboard() {
                         <span className="text-white/80">/</span>
                         <span className="min text-[0.9em] text-white/85">{card.temperatureLow ?? '--'}&deg;{temperatureUnit}</span>
                     </div>
-                    <div className="mt-6 grid grid-cols-2 gap-3 text-center">
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-center">
                       <div
                         aria-label={`Sunrise at ${sunriseLabel}`}
                         className="flex items-center justify-center gap-2 whitespace-nowrap text-white/95"
@@ -878,7 +907,7 @@ export default function WeatherDashboard() {
                         <span className="text-[1.02em] font-semibold tabular-nums">{sunsetLabel}</span>
                       </div>
                     </div>
-                    <div className="mt-6 space-y-3">
+                    <div className="mt-4 space-y-2">
                       {dayDecisions.map((decision) => (
                         <div
                           key={decision.key}

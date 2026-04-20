@@ -135,6 +135,27 @@ describe('weatherService', () => {
       )
     })
 
+    test('returns the forecast even when the grid data request times out', async () => {
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockPointsData,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockForecastData,
+        })
+        .mockRejectedValueOnce(new Error('Request timed out after 5 seconds.'))
+
+      const forecast = await getNWSForecast(latitude, longitude)
+
+      expect(forecast).toEqual({
+        ...mockForecastData.properties,
+        gridData: null,
+        radarStation: 'KSOX',
+      })
+    })
+
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
       sessionStorage.setItem(
         'points:v5:34.05,-118.24',
