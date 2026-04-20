@@ -370,7 +370,7 @@ test.describe('Can I go boating today? App - E2E', () => {
     )
   })
 
-  test('shows a location prompt when browser geolocation fails', async ({ page }) => {
+  test('keeps manual location entry available when browser geolocation fails', async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window.navigator, 'geolocation', {
         configurable: true,
@@ -382,10 +382,12 @@ test.describe('Can I go boating today? App - E2E', () => {
 
     await page.goto('/')
 
+    await expect(page.getByPlaceholder('Enter a location')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: 'Get Weather' })).toBeVisible()
+    await expect(page.getByText('New York')).toHaveCount(0)
     await expect(
       page.getByText('Unable to get your current location. Enter a location to continue.')
-    ).toBeVisible({ timeout: 15000 })
-    await expect(page.getByText('New York')).toHaveCount(0)
+    ).toHaveCount(0)
   })
 
   test('supports searching for a different location manually', async ({ page }) => {

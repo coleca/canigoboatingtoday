@@ -13,10 +13,12 @@ import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
 const DASHBOARD_CACHE_KEY = 'weatherDashboard:v5:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
+const LAST_LOCATION_CACHE_KEY = 'weatherDashboard:v1:lastLocation'
+const LAST_LOCATION_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,
-  timeout: 8000,
-  maximumAge: 5 * 60 * 1000,
+  timeout: 20000,
+  maximumAge: 15 * 60 * 1000,
 }
 const BOATING_WINDOWS = [
   { key: 'morning', label: 'AM', startHour: 6, endHour: 11 },
@@ -193,6 +195,41 @@ function getGeolocationRecoveryMessage(error) {
   return `${getGeolocationErrorMessage(error)} Enter a location to continue.`
 }
 
+function getCachedLastLocation() {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const cachedValue = localStorage.getItem(LAST_LOCATION_CACHE_KEY)
+    if (!cachedValue) return null
+
+    const parsed = JSON.parse(cachedValue)
+    if (Date.now() - parsed.timestamp > LAST_LOCATION_CACHE_MAX_AGE_MS) {
+      localStorage.removeItem(LAST_LOCATION_CACHE_KEY)
+      return null
+    }
+
+    return parsed.payload ?? null
+  } catch {
+    return null
+  }
+}
+
+function cacheLastLocation(payload) {
+  if (typeof window === 'undefined' || !payload?.location) return
+
+  try {
+    localStorage.setItem(
+      LAST_LOCATION_CACHE_KEY,
+      JSON.stringify({
+        timestamp: Date.now(),
+        payload,
+      })
+    )
+  } catch {
+    // Ignore cache write errors.
+  }
+}
+
 function formatSunTime(dateInput) {
   if (!dateInput) return '--:--'
 
@@ -300,7 +337,7 @@ export default function WeatherDashboard() {
   const [weatherData, setWeatherData] = useState(null)
   const [tideData, setTideData] = useState(null)
   const [alertsData, setAlertsData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [isOffline, setIsOffline] = useState(false)
   const [locationName, setLocationName] = useState('')
@@ -341,7 +378,6 @@ export default function WeatherDashboard() {
 
     const requestToken = beginLocationRequest()
     setError(null)
-    setLoading(true)
 
     requestCurrentLocation(
       (position) => {
@@ -395,6 +431,7 @@ export default function WeatherDashboard() {
 
   useEffect(() => {
     const cachedDashboard = getCachedDashboardState()
+    const cachedLastLocation = getCachedLastLocation()
     if (cachedDashboard) {
       lastSuccessfulStateRef.current = {
         location: cachedDashboard.location ?? null,
@@ -438,8 +475,19 @@ export default function WeatherDashboard() {
             return
           }
 
+          if (cachedLastLocation?.location) {
+            const fallbackLocationName = cachedLastLocation.locationName ?? 'Last viewed location'
+            setLocation(cachedLastLocation.location)
+            setLocationName(fallbackLocationName)
+            fetchData(
+              cachedLastLocation.location.latitude,
+              cachedLastLocation.location.longitude,
+              fallbackLocationName
+            )
+            return
+          }
+
           setLoading(false)
-          setError(getGeolocationRecoveryMessage())
         }
       )
     } else {
@@ -448,8 +496,19 @@ export default function WeatherDashboard() {
         return
       }
 
+      if (cachedLastLocation?.location) {
+        const fallbackLocationName = cachedLastLocation.locationName ?? 'Last viewed location'
+        setLocation(cachedLastLocation.location)
+        setLocationName(fallbackLocationName)
+        fetchData(
+          cachedLastLocation.location.latitude,
+          cachedLastLocation.location.longitude,
+          fallbackLocationName
+        )
+        return
+      }
+
       setLoading(false)
-      setError('Current location is not available in this browser. Enter a location to continue.')
     }
   }, [])
 
@@ -487,6 +546,10 @@ export default function WeatherDashboard() {
         tideStatus: previousState.tideStatus ?? 'idle',
         alertsStatus: previousState.alertsStatus ?? 'idle',
       }
+      cacheLastLocation({
+        location: { latitude, longitude },
+        locationName: resolvedLocationName,
+      })
 
       void (async () => {
         const [supplementResult, tideResult, alertsResult] = await Promise.all([
@@ -551,6 +614,10 @@ export default function WeatherDashboard() {
           tideStatus: !tideResult?.error ? 'ready' : 'error',
           alertsStatus: !alertsResult?.error ? 'ready' : 'error',
         }
+        cacheLastLocation({
+          location: { latitude, longitude },
+          locationName: resolvedLocationName,
+        })
       })()
     } catch (err) {
       if (!isLatestDataRequest(dataRequestToken)) return
@@ -580,7 +647,6 @@ export default function WeatherDashboard() {
     if (!locationInput) return
 
     const requestToken = beginLocationRequest()
-    setLoading(true)
     setError(null)
 
     try {

@@ -49,6 +49,7 @@ jest.mock('@/components/charts/HourlyCharts', () => ({
 }))
 
 const DASHBOARD_CACHE_KEY = 'weatherDashboard:v5:lastSuccessfulState'
+const LAST_LOCATION_CACHE_KEY = 'weatherDashboard:v1:lastLocation'
 
 function createDeferred() {
   let resolve
@@ -273,12 +274,12 @@ describe('WeatherDashboard', () => {
   })
 
   test('renders initial layout properly', () => {
-    const { container } = render(<WeatherDashboard />)
+    render(<WeatherDashboard />)
 
     expect(screen.getByText('Can I go boating today?')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Enter a location')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Use current location' })).toBeInTheDocument()
-    expect(container.querySelector('#loader-overlay')).toBeInTheDocument()
+    expect(document.querySelector('#loader-overlay')).not.toBeInTheDocument()
   })
 
   test('shows an offline message when the browser is offline', () => {
@@ -343,19 +344,21 @@ describe('WeatherDashboard', () => {
     expect(rainIcon.style.filter).toContain('hue-rotate(176deg)')
   })
 
-  test('shows a location prompt instead of defaulting to New York when geolocation is denied', async () => {
+  test('keeps manual location entry available instead of defaulting to New York when startup geolocation fails', async () => {
     mockGeolocationError()
 
     render(<WeatherDashboard />)
 
     await waitFor(() =>
-      expect(
-        screen.getByText('Unable to get your current location. Enter a location to continue.')
-      ).toBeInTheDocument()
+      expect(window.navigator.geolocation.getCurrentPosition).toHaveBeenCalled()
     )
 
     expect(getNWSForecast).not.toHaveBeenCalled()
     expect(screen.queryByText('New York')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Unable to get your current location. Enter a location to continue.')
+    ).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter a location')).toBeInTheDocument()
   })
 
   test('supports manual location searches', async () => {
@@ -404,10 +407,38 @@ describe('WeatherDashboard', () => {
       expect.any(Function),
       expect.any(Function),
       expect.objectContaining({
-        timeout: 8000,
-        maximumAge: 300000,
+        timeout: 20000,
+        maximumAge: 900000,
       })
     )
+  })
+
+  test('falls back to the last viewed location when startup geolocation times out', async () => {
+    mockGeolocationError()
+    localStorage.setItem(
+      LAST_LOCATION_CACHE_KEY,
+      JSON.stringify({
+        timestamp: Date.now(),
+        payload: {
+          location: { latitude: 26.9298, longitude: -82.0454 },
+          locationName: 'Punta Gorda',
+        },
+      })
+    )
+    getNWSForecast.mockResolvedValue(buildWeatherData())
+    getTideData.mockResolvedValue(buildTideData())
+    getNWSAlerts.mockResolvedValue(buildAlertsData())
+
+    render(<WeatherDashboard />)
+
+    await waitFor(() =>
+      expect(getNWSForecast).toHaveBeenCalledWith(26.9298, -82.0454)
+    )
+
+    expect(screen.getByText('Punta Gorda')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Unable to get your current location. Enter a location to continue.')
+    ).not.toBeInTheDocument()
   })
 
   test('renders the main forecast before slower supplemental requests finish', async () => {

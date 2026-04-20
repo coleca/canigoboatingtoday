@@ -38,24 +38,54 @@ describe('weatherService', () => {
         periods: [{ name: 'Today', detailedForecast: 'Sunny.' }],
       },
     }
+    const mockFastForecastData = {
+      daily: {
+        time: ['2026-04-16'],
+        weather_code: [0],
+        temperature_2m_max: [22],
+        temperature_2m_min: [17],
+        precipitation_probability_max: [10],
+        wind_speed_10m_max: [14],
+      },
+      hourly: {
+        time: ['2026-04-16T00:00', '2026-04-16T01:00'],
+        temperature_2m: [20, 21],
+        wind_speed_10m: [10, 11],
+        precipitation_probability: [5, 10],
+      },
+    }
+    const buildOkResponse = (body) => ({
+      ok: true,
+      json: async () => body,
+    })
+    const buildErrorResponse = (statusText, status) => ({
+      ok: false,
+      statusText,
+      status,
+    })
+    const isFastForecastRequest = (url) =>
+      String(url).startsWith('https://api.open-meteo.com/v1/forecast?')
 
     test('successfully fetches and returns forecast data', async () => {
-      // Set up the mock chain for fetch
-      fetch
-        // First call for gridpoints
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        // Second & Third calls for forecast & gridData (Promise.all)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockForecastData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ properties: { testGrid: true } }),
-        })
+      fetch.mockImplementation(async (url) => {
+        if (isFastForecastRequest(url)) {
+          throw new Error('Fast forecast unavailable')
+        }
+
+        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+          return buildOkResponse(mockPointsData)
+        }
+
+        if (url === mockPointsData.properties.forecast) {
+          return buildOkResponse(mockForecastData)
+        }
+
+        if (url === mockPointsData.properties.forecastGridData) {
+          return buildOkResponse({ properties: { testGrid: true } })
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`)
+      })
 
       const forecast = await getNWSForecast(latitude, longitude)
 
@@ -101,10 +131,16 @@ describe('weatherService', () => {
 
 
     test('throws an error if the points API request fails', async () => {
-      // Simulate a failed response from the points API
-      fetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Not Found',
+      fetch.mockImplementation(async (url) => {
+        if (isFastForecastRequest(url)) {
+          throw new Error('Fast forecast unavailable')
+        }
+
+        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+          return buildErrorResponse('Not Found')
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`)
       })
 
       // Expect the function to reject with an error
@@ -114,20 +150,25 @@ describe('weatherService', () => {
     })
 
     test('throws an error if the forecast API request fails', async () => {
-      // Simulate a successful points request followed by a failed forecast request
-      fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          statusText: 'Internal Server Error',
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ properties: {} })
-        })
+      fetch.mockImplementation(async (url) => {
+        if (isFastForecastRequest(url)) {
+          throw new Error('Fast forecast unavailable')
+        }
+
+        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+          return buildOkResponse(mockPointsData)
+        }
+
+        if (url === mockPointsData.properties.forecast) {
+          return buildErrorResponse('Internal Server Error')
+        }
+
+        if (url === mockPointsData.properties.forecastGridData) {
+          return buildOkResponse({ properties: {} })
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`)
+      })
 
       // Expect the function to reject with an error
       await expect(getNWSForecast(latitude, longitude)).rejects.toThrow(
@@ -136,16 +177,25 @@ describe('weatherService', () => {
     })
 
     test('returns the forecast even when the grid data request times out', async () => {
-      fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockForecastData,
-        })
-        .mockRejectedValueOnce(new Error('Request timed out after 5 seconds.'))
+      fetch.mockImplementation(async (url) => {
+        if (isFastForecastRequest(url)) {
+          throw new Error('Fast forecast unavailable')
+        }
+
+        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+          return buildOkResponse(mockPointsData)
+        }
+
+        if (url === mockPointsData.properties.forecast) {
+          return buildOkResponse(mockForecastData)
+        }
+
+        if (url === mockPointsData.properties.forecastGridData) {
+          throw new Error('Request timed out after 5 seconds.')
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`)
+      })
 
       const forecast = await getNWSForecast(latitude, longitude)
 
@@ -154,6 +204,33 @@ describe('weatherService', () => {
         gridData: null,
         radarStation: 'KSOX',
       })
+    })
+
+    test('returns a fast forecast fallback when the NWS request times out', async () => {
+      fetch.mockImplementation(async (url) => {
+        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+          throw new Error('Request timed out after 12 seconds.')
+        }
+
+        if (isFastForecastRequest(url)) {
+          return buildOkResponse(mockFastForecastData)
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`)
+      })
+
+      const forecast = await getNWSForecast(latitude, longitude)
+
+      expect(forecast.periods[0]).toMatchObject({
+        name: 'Thursday',
+        shortForecast: 'Sunny',
+        temperature: 72,
+      })
+      expect(forecast.gridData.windSpeed.values[0]).toEqual({
+        validTime: '2026-04-16T00:00/PT1H',
+        value: 10,
+      })
+      expect(forecast.radarStation).toBeNull()
     })
 
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
@@ -171,28 +248,33 @@ describe('weatherService', () => {
         })
       )
 
-      fetch
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 404,
-          statusText: 'Not Found',
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ properties: {} }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockPointsData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => mockForecastData,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ properties: { refreshedGrid: true } }),
-        })
+      fetch.mockImplementation(async (url) => {
+        if (isFastForecastRequest(url)) {
+          throw new Error('Fast forecast unavailable')
+        }
+
+        if (url === 'https://api.weather.gov/gridpoints/OLD/1,1/forecast') {
+          return buildErrorResponse('Not Found', 404)
+        }
+
+        if (url === 'https://api.weather.gov/gridpoints/OLD/1,1') {
+          return buildOkResponse({ properties: {} })
+        }
+
+        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+          return buildOkResponse(mockPointsData)
+        }
+
+        if (url === mockPointsData.properties.forecast) {
+          return buildOkResponse(mockForecastData)
+        }
+
+        if (url === mockPointsData.properties.forecastGridData) {
+          return buildOkResponse({ properties: { refreshedGrid: true } })
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`)
+      })
 
       const forecast = await getNWSForecast(latitude, longitude)
 
@@ -201,7 +283,7 @@ describe('weatherService', () => {
         gridData: { refreshedGrid: true },
         radarStation: 'KSOX',
       })
-      expect(fetch).toHaveBeenNthCalledWith(3, `https://api.weather.gov/points/${latitude},${longitude}`, expect.objectContaining({
+      expect(fetch).toHaveBeenCalledWith(`https://api.weather.gov/points/${latitude},${longitude}`, expect.objectContaining({
         headers: {
           'User-Agent': 'CanIGoBoatingToday/1.0 (canigoboatingtoday.com, hello@canigoboatingtoday.com)',
         },
