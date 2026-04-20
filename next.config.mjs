@@ -27,7 +27,18 @@ try {
     runtimeCaching: defaultRuntimeCaching,
   } = await import('@ducanh2912/next-pwa')
 
-  const runtimeCaching = defaultRuntimeCaching.map((entry) => {
+  const weatherApiRuntimeCaching = [
+    {
+      urlPattern:
+        /^https:\/\/(?:api\.weather\.gov|api\.open-meteo\.com|geocoding-api\.open-meteo\.com|marine-api\.open-meteo\.com|api\.tidesandcurrents\.noaa\.gov)\/.*/i,
+      handler: 'NetworkOnly',
+      method: 'GET',
+    },
+  ]
+
+  const runtimeCaching = [
+    ...weatherApiRuntimeCaching,
+    ...defaultRuntimeCaching.map((entry) => {
     const cacheName = entry.options?.cacheName
 
     if (cacheName === 'next-static-js-assets' || cacheName === 'static-js-assets') {
@@ -42,7 +53,8 @@ try {
     }
 
     return entry
-  })
+  }),
+  ]
 
   withPWA = withPWAInit({
     ...pwaConfig,

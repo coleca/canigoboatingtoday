@@ -11,7 +11,7 @@ import DynamicRadarMap from './DynamicRadarMap'
 import { formatWeekdayLabel, getDailyForecastCards, getLocalDateKey } from '@/lib/forecastPeriods'
 import { parseWaveHeightValue } from '@/lib/forecastUtils'
 
-const DASHBOARD_CACHE_KEY = 'weatherDashboard:v4:lastSuccessfulState'
+const DASHBOARD_CACHE_KEY = 'weatherDashboard:v5:lastSuccessfulState'
 const DASHBOARD_CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: false,
@@ -189,6 +189,10 @@ function getGeolocationErrorMessage(error) {
   return 'Unable to get your current location.'
 }
 
+function getGeolocationRecoveryMessage(error) {
+  return `${getGeolocationErrorMessage(error)} Enter a location to continue.`
+}
+
 function formatSunTime(dateInput) {
   if (!dateInput) return '--:--'
 
@@ -307,6 +311,7 @@ export default function WeatherDashboard() {
   const [activeChartHour, setActiveChartHour] = useState(null)
   const [shouldLoadRadar, setShouldLoadRadar] = useState(false)
   const locationRequestTokenRef = useRef(0)
+  const dataRequestTokenRef = useRef(0)
 
   const beginLocationRequest = () => {
     locationRequestTokenRef.current += 1
@@ -314,6 +319,11 @@ export default function WeatherDashboard() {
   }
 
   const isLatestLocationRequest = (requestToken) => locationRequestTokenRef.current === requestToken
+  const beginDataRequest = () => {
+    dataRequestTokenRef.current += 1
+    return dataRequestTokenRef.current
+  }
+  const isLatestDataRequest = (requestToken) => dataRequestTokenRef.current === requestToken
 
   const clearActiveChartHour = () => {
     setActiveChartHour(null)
@@ -344,7 +354,7 @@ export default function WeatherDashboard() {
       },
       (locationError) => {
         if (!isLatestLocationRequest(requestToken)) return
-        setError(getGeolocationErrorMessage(locationError))
+        setError(getGeolocationRecoveryMessage(locationError))
         setLoading(false)
       }
     )
@@ -418,24 +428,23 @@ export default function WeatherDashboard() {
             return
           }
 
-          // Default to New York if geolocation fails
-          const defaultLat = 40.7128
-          const defaultLon = -74.0060
-          setLocation({ latitude: defaultLat, longitude: defaultLon })
-          setLocationName(`New York`)
-          fetchData(defaultLat, defaultLon, 'New York')
+          setLoading(false)
+          setError(getGeolocationRecoveryMessage())
         }
       )
     } else {
-      const defaultLat = 40.7128
-      const defaultLon = -74.0060
-      setLocation({ latitude: defaultLat, longitude: defaultLon })
-      setLocationName(`New York`)
-      fetchData(defaultLat, defaultLon, 'New York')
+      if (cachedDashboard) {
+        setLoading(false)
+        return
+      }
+
+      setLoading(false)
+      setError('Current location is not available in this browser. Enter a location to continue.')
     }
   }, [])
 
   const fetchData = async (latitude, longitude, resolvedLocationName = locationName) => {
+    const dataRequestToken = beginDataRequest()
     const previousState = {
       location,
       locationName,
@@ -452,68 +461,71 @@ export default function WeatherDashboard() {
       setTideStatus('loading')
       setAlertsStatus('loading')
 
-      const forecastPromise = getNWSForecast(latitude, longitude)
-      const supplementPromise = getBoatingSupplement(latitude, longitude).catch((supplementError) => ({
-        error: supplementError,
-      }))
-      const tidePromise = getTideData(latitude, longitude).catch((tideError) => ({
-        error: tideError,
-      }))
-      const alertsPromise = getNWSAlerts(latitude, longitude).catch((alertsError) => ({
-        error: alertsError,
-      }))
+      const forecast = await getNWSForecast(latitude, longitude)
+      if (!isLatestDataRequest(dataRequestToken)) return
 
-      const forecast = await forecastPromise
       setWeatherData(forecast)
       setSelectedDayIndex(0)
       setActiveChartHour(null)
       setLoading(false)
 
-      const [supplementResult, tideResult, alertsResult] = await Promise.all([
-        supplementPromise,
-        tidePromise,
-        alertsPromise,
-      ])
-      const enrichedForecast = !supplementResult?.error
-        ? {
-            ...forecast,
-            ...supplementResult,
-          }
-        : forecast
+      void (async () => {
+        const [supplementResult, tideResult, alertsResult] = await Promise.all([
+          getBoatingSupplement(latitude, longitude).catch((supplementError) => ({
+            error: supplementError,
+          })),
+          getTideData(latitude, longitude).catch((tideError) => ({
+            error: tideError,
+          })),
+          getNWSAlerts(latitude, longitude).catch((alertsError) => ({
+            error: alertsError,
+          })),
+        ])
+        if (!isLatestDataRequest(dataRequestToken)) return
 
-      if (!supplementResult?.error) {
-        setWeatherData(enrichedForecast)
-      }
+        const enrichedForecast = !supplementResult?.error
+          ? {
+              ...forecast,
+              ...supplementResult,
+            }
+          : forecast
 
-      if (!tideResult?.error) {
-        const tides = tideResult
-        setTideData(tides)
-        setTideStatus('ready')
-        cacheDashboardState({
-          location: { latitude, longitude },
-          locationName: resolvedLocationName,
-          weatherData: enrichedForecast,
-          tideData: tides,
-          tideStatus: 'ready',
-        })
-      } else {
-        setTideStatus('error')
-        cacheDashboardState({
-          location: { latitude, longitude },
-          locationName: resolvedLocationName,
-          weatherData: enrichedForecast,
-          tideData: null,
-          tideStatus: 'error',
-        })
-      }
+        if (!supplementResult?.error) {
+          setWeatherData(enrichedForecast)
+        }
 
-      if (!alertsResult?.error) {
-        setAlertsData(alertsResult)
-        setAlertsStatus('ready')
-      } else {
-        setAlertsStatus('error')
-      }
+        if (!tideResult?.error) {
+          const tides = tideResult
+          setTideData(tides)
+          setTideStatus('ready')
+          cacheDashboardState({
+            location: { latitude, longitude },
+            locationName: resolvedLocationName,
+            weatherData: enrichedForecast,
+            tideData: tides,
+            tideStatus: 'ready',
+          })
+        } else {
+          setTideStatus('error')
+          cacheDashboardState({
+            location: { latitude, longitude },
+            locationName: resolvedLocationName,
+            weatherData: enrichedForecast,
+            tideData: null,
+            tideStatus: 'error',
+          })
+        }
+
+        if (!alertsResult?.error) {
+          setAlertsData(alertsResult)
+          setAlertsStatus('ready')
+        } else {
+          setAlertsStatus('error')
+        }
+      })()
     } catch (err) {
+      if (!isLatestDataRequest(dataRequestToken)) return
+
       if (previousState.weatherData || previousState.tideData || previousState.alertsData) {
         setLocation(previousState.location)
         setLocationName(previousState.locationName)
