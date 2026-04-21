@@ -945,7 +945,7 @@ export default function WeatherDashboard() {
                         <span className="text-white/80">/</span>
                         <span className="min text-[0.9em] text-white/85">{card.temperatureLow ?? '--'}&deg;{temperatureUnit}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-center">
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-center">
                       <div
                         aria-label={`Sunrise at ${sunriseLabel}`}
                         className="flex items-center justify-center gap-2 whitespace-nowrap text-white/95"
@@ -973,7 +973,7 @@ export default function WeatherDashboard() {
                         <span className="text-[1.02em] font-semibold tabular-nums">{sunsetLabel}</span>
                       </div>
                     </div>
-                    <div className="mt-4 space-y-2">
+                    <div className="mt-2.5 space-y-1">
                       {dayDecisions.map((decision) => (
                         <div
                           key={decision.key}
@@ -982,7 +982,7 @@ export default function WeatherDashboard() {
                               ? `${decision.key} no ${decision.reason.label.toLowerCase()}`
                               : `${decision.key} yes`
                           }
-                          className="mx-auto grid w-[150px] grid-cols-[68px_52px_18px] items-center justify-items-end gap-x-2 text-[0.98em] font-semibold"
+                          className="mx-auto grid w-[150px] grid-cols-[68px_52px_18px] items-center justify-items-end gap-x-2 leading-none text-[0.98em] font-semibold"
                         >
                           <span className="w-full text-right text-[0.9rem] uppercase tracking-[0.1em] text-white/90">
                             {decision.key === 'morning' ? 'MORN:' : 'AFT:'}
