@@ -40,19 +40,20 @@ describe('weatherService', () => {
     }
     const mockFastForecastData = {
       daily: {
-        time: ['2026-04-16'],
-        weather_code: [0],
-        temperature_2m_max: [22],
-        temperature_2m_min: [17],
-        precipitation_probability_max: [10],
-        wind_speed_10m_max: [14],
+        time: ['2026-04-19', '2026-04-20'],
+        weather_code: [2, 0],
+        temperature_2m_max: [21, 22],
+        temperature_2m_min: [16, 17],
+        precipitation_probability_max: [20, 10],
+        wind_speed_10m_max: [12, 14],
       },
       hourly: {
-        time: ['2026-04-16T00:00', '2026-04-16T01:00'],
-        temperature_2m: [20, 21],
-        wind_speed_10m: [10, 11],
-        precipitation_probability: [5, 10],
+        time: ['2026-04-19T23:00', '2026-04-20T00:00', '2026-04-20T01:00'],
+        temperature_2m: [19, 20, 21],
+        wind_speed_10m: [9, 10, 11],
+        precipitation_probability: [15, 5, 10],
       },
+      timezone: 'America/New_York',
     }
     const buildOkResponse = (body) => ({
       ok: true,
@@ -207,30 +208,42 @@ describe('weatherService', () => {
     })
 
     test('returns a fast forecast fallback when the NWS request times out', async () => {
-      fetch.mockImplementation(async (url) => {
-        if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
-          throw new Error('Request timed out after 12 seconds.')
-        }
+      jest.useFakeTimers()
+      try {
+        jest.setSystemTime(new Date('2026-04-20T12:00:00Z'))
 
-        if (isFastForecastRequest(url)) {
-          return buildOkResponse(mockFastForecastData)
-        }
+        fetch.mockImplementation(async (url) => {
+          if (url === `https://api.weather.gov/points/${latitude},${longitude}`) {
+            throw new Error('Request timed out after 12 seconds.')
+          }
 
-        throw new Error(`Unexpected fetch URL: ${url}`)
-      })
+          if (isFastForecastRequest(url)) {
+            return buildOkResponse(mockFastForecastData)
+          }
 
-      const forecast = await getNWSForecast(latitude, longitude)
+          throw new Error(`Unexpected fetch URL: ${url}`)
+        })
 
-      expect(forecast.periods[0]).toMatchObject({
-        name: 'Thursday',
-        shortForecast: 'Sunny',
-        temperature: 72,
-      })
-      expect(forecast.gridData.windSpeed.values[0]).toEqual({
-        validTime: '2026-04-16T00:00/PT1H',
-        value: 10,
-      })
-      expect(forecast.radarStation).toBeNull()
+        const forecast = await getNWSForecast(latitude, longitude)
+
+        expect(forecast.periods[0]).toMatchObject({
+          name: 'Monday',
+          shortForecast: 'Sunny',
+          temperature: 72,
+        })
+        expect(forecast.periods.some((period) => period.name === 'Sunday')).toBe(false)
+        expect(forecast.gridData.windSpeed.values[0]).toEqual({
+          validTime: '2026-04-19T23:00/PT1H',
+          value: 9,
+        })
+        expect(forecast.gridData.windSpeed.values[1]).toEqual({
+          validTime: '2026-04-20T00:00/PT1H',
+          value: 10,
+        })
+        expect(forecast.radarStation).toBeNull()
+      } finally {
+        jest.useRealTimers()
+      }
     })
 
     test('refreshes stale point metadata and retries once when the forecast URL returns 404', async () => {
